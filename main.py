@@ -1,0 +1,389 @@
+from collections import defaultdict
+import json
+import os
+import sys
+import urllib.request
+import shutil
+import logging
+from logging.handlers import RotatingFileHandler
+import inspect
+import time
+import zipfile
+
+software_version = "0.0.1"
+
+# Import our JSON config file #
+config_path = os.path.join(os.path.dirname(__file__), "config.json")
+
+with open(config_path, "r", encoding="utf-8") as f:
+    config = json.load(f)
+
+## READING CONFIG FILE ##
+# Accessing our config variables
+base_dir = config["program"].get("base_dir") or os.path.dirname(__file__)
+version_filename = config["program"].get("version_filename") or "version.txt"
+
+# Grab default aircraft ID from config
+aircrafts = config.get("aircrafts", {})
+if config.get("default_aircraft_id"):
+    default_aircraft_id = config["default_aircraft_id"]
+elif aircrafts:
+    default_aircraft_id = next(iter(aircrafts))
+else:
+    raise ValueError("No valid aircraft ID's found in config file.")
+
+# Base liveries folder to use with aircraft ID's etc           
+liveries_folder = config["environment"]["liveries_folder"]
+
+# Clean URL to the server for connecting
+server_url = config["program"]["server_url"].rstrip("/")
+
+#Local server version temp file, generic name
+
+server_version_file = os.path.join(base_dir, config["program"]["server_version_file"]) 
+
+## LOGGING CONFIG ##
+log_file_name = config["logging"]["log_file_name"]
+max_bytes = config["logging"]["max_bytes"]
+backup_count = config["logging"]["backup_count"]
+# Log file path using our base_dir
+log_file_path = os.path.join(base_dir, log_file_name)
+
+# End of config reading #
+
+## LOGGING SETUP ##
+logging_handler = RotatingFileHandler(
+    log_file_path,
+    maxBytes=max_bytes,
+    backupCount=backup_count
+)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(message)s",
+    handlers=[logging_handler]
+)
+def log_info(msg, include_args=False):
+    # Automatically puts the caller function name, optionally including its args
+    frame = inspect.stack()[1]
+    func_name = frame.function
+    
+    if include_args:
+        #Get arg names and values for caller
+        args, _, _, values = inspect.getargvalues(frame.frame)
+        arg_str = ", ".join(f"{a}={values[a]!r}" for a in args)
+        logging.info(f"{func_name}({arg_str}): {msg}")
+    else:
+        logging.info(f"{func_name}(): {msg}")
+
+def log_error(msg, include_args=False):
+    frame = inspect.stack()[1]
+    func_name = frame.function
+
+    if include_args:
+        #Get arg names and values for caller
+        args, _, _, values = inspect.getargvalues(frame.frame)
+        arg_str = ", ".join(f"{a}={values[a]!r}" for a in args)
+        logging.error(f">>ERROR: {func_name}({arg_str}): {msg}")
+    else:
+        logging.error(f">>ERROR: {func_name}(): {msg}")
+
+## Set default aircraft ID to global, this changes when the user selects a different aircraft
+current_aircraft_id = default_aircraft_id
+## Set user_delete to false, the UI changes this
+user_delete = False
+
+logging.info(f"Program Start:  Current Version: {software_version} ; current_aircraft_id is '{current_aircraft_id}'")
+
+# Helper to always get the correct aircraft_id, 
+# allows for batch operations in the future, or checking all aircraft for updates etc.
+def get_local_version_file(aircraft_id):
+    return os.path.join(base_dir, f"{aircraft_id}_{version_filename}")
+
+
+# Grab the URL to the remote location a livery exists
+def get_remote_livery_url(aircraft_id):
+    remote_subfolder = aircrafts[aircraft_id].get("remote_subfolder",None)
+    if remote_subfolder:
+        return f"{server_url}/{remote_subfolder.lstrip("/").rstrip("/")}/"
+    else:
+        return f"{server_url}/"
+    
+
+# Same as local version, grabs the correct URL and file name for each aircraft type
+def get_server_version_file(aircraft_id):
+    return f"{get_remote_livery_url(aircraft_id)}{aircraft_id}_{version_filename}"
+
+
+def parse_release(release_str):
+    # Converts 'release-5.1.2' to (5, 1, 2)
+    release_str = release_str.lower()
+    if not release_str.startswith("release-"):
+        raise ValueError(f"Invalid release format: {release_str}")
+    version_part = release_str[len("release-"):]
+    parts = version_part.split(".")
+    # Converts to integers, missing part defaults to 0
+    return tuple(int(p) for p in parts + ["0"]*(3-len(parts)))
+
+
+def is_newer(local, remote):
+    # Returns true if remote > local
+    return parse_release(remote) > parse_release(local)
+
+assert parse_release("release-5.0.9") == (5, 0, 9)
+assert parse_release("release-5.1") == (5, 1, 0)
+assert is_newer("release-5.0.9", "release-5.1.0")  # True
+assert not is_newer("release-5.1.1", "release-5.1.0")  # False
+
+
+def parse_server_file(filename, local_version, server_version):
+    short_filename = os.path.basename(filename)
+    logging.info(f"parse_server_file({filename}, {local_version}, {server_version}):  Running...")
+    download_files = set() #set avoids dupes
+    delete_folders = set()
+    releases_to_process = [] # how many releases between local and current
+
+    local_tuple = parse_release(local_version)
+    server_tuple = parse_release(server_version)
+
+    # Step 1: Read all the lines, build blocks for each release
+    # looks like a json list, release then all of the lines in it after
+    with open(filename, "r", encoding="utf-8") as f: 
+        lines = [line.strip() for line in f if line.strip()]
+
+    current_release = None
+    release_blocks = defaultdict(list) # release string -> list of action lines, this is the JSON looking part
+    for line in lines:
+        line_lower = line.lower()
+        if line_lower.startswith("release-"):
+            current_release = line
+            logging.info(f"parse_server_file({short_filename}, {local_version}, {server_version}):  Found {current_release}")
+            continue
+        if current_release:
+            release_blocks[current_release].append(line) # if not a release title, then its a line in the release, add it.
+
+    # Step 2: Check which releases are newer then the local, up to the servers current version
+    for release in release_blocks.keys():
+        release_tuple = parse_release(release)
+        if local_tuple < release_tuple <= server_tuple:
+            releases_to_process.append(release) # builds a list of releases we have to go through to collect files
+
+    # Step 3: Reverse the list, so we don't download deleted files, but do download them if they are re-added
+    releases_to_process.reverse()
+
+    # Step 4: Process releases in order
+    for release in releases_to_process:
+        for line in release_blocks[release]:
+            if ";" not in line:
+                continue
+            action, file_or_folder = line.split(";",2)[:2]
+            action = action.lower().strip()
+            file_or_folder = file_or_folder.strip()
+            if action in ["new", "update"]:
+                download_files.add(file_or_folder)
+                delete_folders.discard(file_or_folder)   # no longer scheduled for deletion
+                log_info(f"Found '{action}' '{file_or_folder}'")
+            elif action == "delete":
+                delete_folders.add(file_or_folder)
+                download_files.discard(file_or_folder) # remove previously added files
+                log_info(f"Found '{action}' '{file_or_folder}'")
+
+    return list (download_files), list(delete_folders)
+
+
+def get_latest_release(filename):
+    with open(filename, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line.lower().startswith("release-"):
+                return line # first-release is newest
+    return None
+
+
+def get_remote_version(url):
+    try:
+        with urllib.request.urlopen(url) as response:
+            for line in response:
+                line = line.decode('utf-8').strip()
+                if line.lower().startswith("release-"):
+                    return line
+    except Exception as e:
+        print(f"Failed to get remote version: {e}")
+        return None
+
+
+def get_remote_updates(aircraft_id):
+    local_newest = get_latest_release(get_local_version_file(aircraft_id)) or "release-0.0.0"
+    server_newest = get_remote_version(get_server_version_file(aircraft_id))
+    if server_newest is None:
+        print("Cannot fetch server version. Please check your network, or the URL.")
+        logging.info(f"get_remote_updates({aircraft_id}):  Cannot fetch server version")
+        return "error", "remote_fetch_failed, server_newest is None"
+
+    if not is_newer(local_newest, server_newest):
+        print("Up to date!")
+        logging.info(f"get_remote_updates({aircraft_id}):  local version {local_newest} matches {server_newest}. Up to Date!")
+        return "up_to_date", ([],[])
+
+    # New Update is available
+    print(f"Local Version: {local_newest}")
+    print(f"Server Version: {server_newest}")
+    logging.info(f"get_remote_updates({aircraft_id}):  Local Version: {local_newest}")
+    logging.info(f"get_remote_updates({aircraft_id}):  Server Version: {server_newest}")
+    
+    # download the full server version file for processing since its newer then local
+    try:
+        urllib.request.urlretrieve(get_server_version_file(aircraft_id), server_version_file)
+        msg = f"Downloaded server version file to: '{server_version_file}'"
+        print(msg)
+        logging.info(f"get_remote_updates({aircraft_id}):  {msg}")
+
+        # parse server file and collect updates
+        download_files, delete_folders = parse_server_file(server_version_file, local_newest, server_newest)
+        print("\nFiles to download: ", download_files)
+        print("\nFolders to delete: ", delete_folders)
+
+        logging.info(f"get_remote_updates({aircraft_id}):  found the following files to download: {download_files}")
+        logging.info(f"get_remote_updates({aircraft_id}):  found the following files or folders to remove: {delete_folders}")
+        
+        return "ok", (download_files, delete_folders)
+
+    except Exception as e:
+        msg = f"Failed to download or parse server file: '{e}'"
+        logging.error(f"get_remote_updates({aircraft_id}):  {msg}")
+        return "error", msg
+
+
+def clean_up_operation(update = True, delete = True, echo = True):
+    print("\n")
+    if update:
+        try:
+            shutil.copyfile(server_version_file, get_local_version_file(current_aircraft_id))
+            logging.info(f"clean_up_operation({update},{delete},{echo}):  ran and replaced '{get_local_version_file(current_aircraft_id)}' with '{server_version_file}'")
+        except FileNotFoundError:
+            print(f"File not found: {server_version_file}")
+            log_error(f"File not found to copy: '{server_version_file}'", True)
+        if echo:
+            print(f"Updated '{get_local_version_file(current_aircraft_id)}' with the version from the server.")
+    if delete:
+        try:
+            os.remove(server_version_file)
+            logging.info(f"clean_up_operation({update},{delete},{echo}):  ran and deleted the local copy of '{server_version_file}'")
+            if echo:
+                print(f"Deleted {server_version_file} to clean up operations\n")
+        except FileNotFoundError:
+            log_error(f"File not found to delete: '{server_version_file}'", True)
+    if not delete and not update:
+        log_error(f"did not delete or update while update={update} and delete={delete}", True)
+        if echo:
+            print(f"{os.path.basename(get_local_version_file(current_aircraft_id))} not updated, {os.path.basename(server_version_file)} file not deleted\n")
+
+def process_downloads(download_files, aircraft_id, update_callback=None):
+    # Build our destination folder to use the current_aircraft id for its subfolder
+    destination_folder = os.path.normpath(os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"]))
+    os.makedirs(destination_folder, exist_ok=True)
+
+    for file in download_files:
+        # build a correct URL using the aircraft ID for remote url
+        file_url = get_remote_livery_url(aircraft_id) + file
+        destination_file = os.path.normpath(os.path.join(destination_folder, file))
+        log_info(f"Processing Download for {file}", True)
+        log_info(f"File URL:  {file_url}")
+        log_info(f"Destination Folder: {destination_file},")
+        start_time = time.time()
+
+        try:
+            # Download the file
+            if update_callback:
+                update_callback(f"Downloading: {file}", file=file, action="download", done=False)
+            urllib.request.urlretrieve(file_url, destination_file)
+            elapsed = time.time() - start_time
+            if update_callback:
+                update_callback(f"Downloading: {file} - Done", file=file, action="download", done=True)
+            log_info(f"Download Complete of '{file}' in {elapsed:.2f} seconds")
+
+            # Unpack the file
+            if zipfile.is_zipfile(destination_file):
+                with zipfile.ZipFile(destination_file, 'r') as zip_ref:
+                    zip_contents = zip_ref.namelist()
+                    # find toplevel folders
+                    top_level_folders = set()
+                    for entry_name in zip_contents:
+                        if '/' in entry_name:
+                            folder_name = entry_name.split('/')[0]
+                            top_level_folders.add(folder_name)
+                    # Check for single root folder
+                    has_single_root = (
+                        len(top_level_folders) == 1
+                        and not list(top_level_folders)[0].startswith('__MACOSX')
+                    )
+                    if has_single_root:
+                        root_folder_name = list(top_level_folders)[0]
+                        extract_path = destination_folder
+                        log_info(f"Unpacking '{file}' (root folder '{root_folder_name}') into '{extract_path}'")
+                    else:
+                        #create a folder based on zip filename
+                        safe_folder_name = os.path.splitext(file)[0]
+                        extract_path = os.path.normpath(os.path.join(destination_folder, safe_folder_name))
+                        os.makedirs(extract_path, exist_ok=True)
+                        
+                        log_info(f"Unpacking '{file}' into safe folder '{extract_path}'")
+                    if update_callback:
+                            update_callback(f"Extracting: {file}", file=file, action="extract", done=False)
+                    zip_ref.extractall(extract_path)
+                    if update_callback:
+                            update_callback(f"Extracting: {file} - Done", file=file, action="extract", done=True)
+                    elapsed = time.time() - start_time
+                    log_info(f"Unpack Complete for '{file}' in {elapsed:.2f} seconds")
+            os.remove(destination_file)
+            log_info(f"Removed ZIP file '{file}' after extraction")
+
+        except HTTPError as e:
+            log_error(f"HTTP error {e.code} {e.reason} while downloading '{file}'")
+        except URLError as e:
+            log_error(f"Network error while downloading '{file}': {e}")
+        except ContentTooShortError as e:
+            log_error(f"Download incomplete for '{file}': {e}")
+        except (OSError, PermissionError) as e:
+            log_error(f"Local file error for '{file}': {e}")
+
+def process_deletes(delete_folders, aircraft_id):
+    working_folder = os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"])
+
+    for folder in delete_folders:
+        folder = os.path.splitext(folder)[0]
+        target_folder = os.path.normpath(os.path.join(working_folder, folder))
+        if os.path.isdir(target_folder):
+            try:
+                shutil.rmtree(target_folder)
+                log_info(f"Deleting {target_folder}")
+            except Exception as e:
+                log_error(f"Failed to delete {target_folder}: {e}")
+        else: 
+            log_info(f"Folder does not exist: {target_folder}")
+
+def get_working_folder(aircraft_id):
+    return os.path.normpath(os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"]))
+
+
+
+# status, data = get_remote_updates(current_aircraft_id)
+# if status == "ok":
+#     download_files, delete_folders = data
+#     if download_files:
+#         process_downloads(download_files, current_aircraft_id)
+#     if delete_folders and user_delete:
+#         process_deletes(delete_folders, current_aircraft_id)
+# elif status == "up_to_date":
+#     pass
+# else:
+#     print("Error: ", data)
+
+# clean_up_operation(False,False,True)
+
+
+## Next steps are to start to check a remote server verson file instead of the local one
+# Then we want to start actually downloading and unzipping files from the server
+# Then we collate the deletes and process them
+# Then we update the versons file. This way if something fails in process and we have to restart, we're still on the old version
+logging.info(f"Program End")
+

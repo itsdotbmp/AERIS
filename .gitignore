@@ -1,0 +1,31 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# --- Virtual environment ---
+env/
+
+# --- Build artifacts ---
+build/
+dist/
+*.spec
+
+# --- Logs and temp files ---
+*.log
+*.tmp
+*.bak
+
+# --- Editor-specific ---
+.vscode/
+.idea/
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+
+# --- Testing or dev-only scripts ---
+devmode.bat
+livery.log
+f-4e-45mc_version.txt
