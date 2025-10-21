@@ -9,6 +9,7 @@ from logging.handlers import RotatingFileHandler
 import inspect
 import time
 import zipfile
+import atexit
 
 software_version = "0.0.1"
 
@@ -62,7 +63,7 @@ logging.basicConfig(
     format="%(asctime)s - %(message)s",
     handlers=[logging_handler]
 )
-def log_info(msg, include_args=False):
+def log_info(msg, tag=None, include_args=False):
     # Automatically puts the caller function name, optionally including its args
     frame = inspect.stack()[1]
     func_name = frame.function
@@ -71,9 +72,13 @@ def log_info(msg, include_args=False):
         #Get arg names and values for caller
         args, _, _, values = inspect.getargvalues(frame.frame)
         arg_str = ", ".join(f"{a}={values[a]!r}" for a in args)
-        logging.info(f"{func_name}({arg_str}): {msg}")
+        context = f"{func_name}({arg_str})"
     else:
-        logging.info(f"{func_name}(): {msg}")
+        context = f"{func_name}()"    
+    if tag:
+        logging.info(f"INFO {tag}  |  {context}  |  {msg}")
+    else:
+        logging.info(f"INFO  |  {context}  |  {msg}")
 
 def log_error(msg, include_args=False):
     frame = inspect.stack()[1]
@@ -83,16 +88,15 @@ def log_error(msg, include_args=False):
         #Get arg names and values for caller
         args, _, _, values = inspect.getargvalues(frame.frame)
         arg_str = ", ".join(f"{a}={values[a]!r}" for a in args)
-        logging.error(f">>ERROR: {func_name}({arg_str}): {msg}")
+        logging.error(f"ERROR  |  {func_name}({arg_str})  |  {msg}")
     else:
-        logging.error(f">>ERROR: {func_name}(): {msg}")
+        logging.error(f"ERROR  |  {func_name}()  |  {msg}")
 
 ## Set default aircraft ID to global, this changes when the user selects a different aircraft
 current_aircraft_id = default_aircraft_id
 ## Set user_delete to false, the UI changes this
 user_delete = False
 
-logging.info(f"Program Start:  Current Version: {software_version} ; current_aircraft_id is '{current_aircraft_id}'")
 
 # Helper to always get the correct aircraft_id, 
 # allows for batch operations in the future, or checking all aircraft for updates etc.
@@ -137,7 +141,7 @@ assert not is_newer("release-5.1.1", "release-5.1.0")  # False
 
 def parse_server_file(filename, local_version, server_version):
     short_filename = os.path.basename(filename)
-    logging.info(f"parse_server_file({filename}, {local_version}, {server_version}):  Running...")
+    log_info(f"Running...", include_args=True)
     download_files = set() #set avoids dupes
     delete_folders = set()
     releases_to_process = [] # how many releases between local and current
@@ -156,7 +160,7 @@ def parse_server_file(filename, local_version, server_version):
         line_lower = line.lower()
         if line_lower.startswith("release-"):
             current_release = line
-            logging.info(f"parse_server_file({short_filename}, {local_version}, {server_version}):  Found {current_release}")
+            log_info(f"Found {current_release}", tag="PARSE_REMOTE_FILE", include_args=True)
             continue
         if current_release:
             release_blocks[current_release].append(line) # if not a release title, then its a line in the release, add it.
@@ -216,40 +220,40 @@ def get_remote_updates(aircraft_id):
     server_newest = get_remote_version(get_server_version_file(aircraft_id))
     if server_newest is None:
         print("Cannot fetch server version. Please check your network, or the URL.")
-        logging.info(f"get_remote_updates({aircraft_id}):  Cannot fetch server version")
+        log_error(f"get_remote_updates({aircraft_id}):  Cannot fetch server version", include_args=True)
         return "error", "remote_fetch_failed, server_newest is None"
 
     if not is_newer(local_newest, server_newest):
         print("Up to date!")
-        logging.info(f"get_remote_updates({aircraft_id}):  local version {local_newest} matches {server_newest}. Up to Date!")
+        log_info(f"UP_TO_DATE  |  local version {local_newest} matches {server_newest}. Up to Date!", include_args=True)
         return "up_to_date", ([],[])
 
     # New Update is available
     print(f"Local Version: {local_newest}")
     print(f"Server Version: {server_newest}")
-    logging.info(f"get_remote_updates({aircraft_id}):  Local Version: {local_newest}")
-    logging.info(f"get_remote_updates({aircraft_id}):  Server Version: {server_newest}")
+    log_info(f"Local Version: {local_newest}", include_args=True)
+    log_info(f"Server Version: {server_newest}", include_args=True)
     
     # download the full server version file for processing since its newer then local
     try:
         urllib.request.urlretrieve(get_server_version_file(aircraft_id), server_version_file)
         msg = f"Downloaded server version file to: '{server_version_file}'"
         print(msg)
-        logging.info(f"get_remote_updates({aircraft_id}):  {msg}")
+        log_info(f"{msg}", include_args=True)
 
         # parse server file and collect updates
         download_files, delete_folders = parse_server_file(server_version_file, local_newest, server_newest)
         print("\nFiles to download: ", download_files)
         print("\nFolders to delete: ", delete_folders)
 
-        logging.info(f"get_remote_updates({aircraft_id}):  found the following files to download: {download_files}")
-        logging.info(f"get_remote_updates({aircraft_id}):  found the following files or folders to remove: {delete_folders}")
+        log_info(f"found the following files to download: {download_files}", include_args=True)
+        log_info(f"found the following files or folders to remove: {delete_folders}", include_args=True)
         
         return "ok", (download_files, delete_folders)
 
     except Exception as e:
         msg = f"Failed to download or parse server file: '{e}'"
-        logging.error(f"get_remote_updates({aircraft_id}):  {msg}")
+        log_error(f"{msg}", include_args=True)
         return "error", msg
 
 
@@ -258,10 +262,10 @@ def clean_up_operation(update = True, delete = True, echo = True):
     if update:
         try:
             shutil.copyfile(server_version_file, get_local_version_file(current_aircraft_id))
-            logging.info(f"clean_up_operation({update},{delete},{echo}):  ran and replaced '{get_local_version_file(current_aircraft_id)}' with '{server_version_file}'")
+            log_info(f"ran and replaced '{get_local_version_file(current_aircraft_id)}' with '{server_version_file}'", include_args=True)
         except FileNotFoundError:
             print(f"File not found: {server_version_file}")
-            log_error(f"File not found to copy: '{server_version_file}'", True)
+            log_error(f"File not found to copy: '{server_version_file}'", include_args=True)
         if echo:
             print(f"Updated '{get_local_version_file(current_aircraft_id)}' with the version from the server.")
     if delete:
@@ -271,9 +275,9 @@ def clean_up_operation(update = True, delete = True, echo = True):
             if echo:
                 print(f"Deleted {server_version_file} to clean up operations\n")
         except FileNotFoundError:
-            log_error(f"File not found to delete: '{server_version_file}'", True)
+            log_error(f"File not found to delete: '{server_version_file}'", include_args=True)
     if not delete and not update:
-        log_error(f"did not delete or update while update={update} and delete={delete}", True)
+        log_error(f"did not delete or update while update={update} and delete={delete}", include_args=True)
         if echo:
             print(f"{os.path.basename(get_local_version_file(current_aircraft_id))} not updated, {os.path.basename(server_version_file)} file not deleted\n")
 
@@ -286,7 +290,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
         # build a correct URL using the aircraft ID for remote url
         file_url = get_remote_livery_url(aircraft_id) + file
         destination_file = os.path.normpath(os.path.join(destination_folder, file))
-        log_info(f"Processing Download for {file}", True)
+        log_info(f"Processing Download for {file}", tag="DOWNLOADING_START", include_args=True)
         log_info(f"File URL:  {file_url}")
         log_info(f"Destination Folder: {destination_file},")
         start_time = time.time()
@@ -299,7 +303,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
             elapsed = time.time() - start_time
             if update_callback:
                 update_callback(f"Downloading: {file} - Done", file=file, action="download", done=True)
-            log_info(f"Download Complete of '{file}' in {elapsed:.2f} seconds")
+            log_info(f"Download Completed of '{file}' in {elapsed:.2f} seconds", tag="DOWNLOAD_END")
 
             # Unpack the file
             if zipfile.is_zipfile(destination_file):
@@ -319,23 +323,23 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                     if has_single_root:
                         root_folder_name = list(top_level_folders)[0]
                         extract_path = destination_folder
-                        log_info(f"Unpacking '{file}' (root folder '{root_folder_name}') into '{extract_path}'")
+                        log_info(f"Unpacking '{file}' (root folder '{root_folder_name}') into '{extract_path}'", tag="EXTRACTING_START")
                     else:
                         #create a folder based on zip filename
                         safe_folder_name = os.path.splitext(file)[0]
                         extract_path = os.path.normpath(os.path.join(destination_folder, safe_folder_name))
                         os.makedirs(extract_path, exist_ok=True)
                         
-                        log_info(f"Unpacking '{file}' into safe folder '{extract_path}'")
+                        log_info(f"Unpacking '{file}' into safe folder '{extract_path}'", tag="EXTRACTING_START")
                     if update_callback:
                             update_callback(f"Extracting: {file}", file=file, action="extract", done=False)
                     zip_ref.extractall(extract_path)
                     if update_callback:
                             update_callback(f"Extracting: {file} - Done", file=file, action="extract", done=True)
                     elapsed = time.time() - start_time
-                    log_info(f"Unpack Complete for '{file}' in {elapsed:.2f} seconds")
+                    log_info(f"Unpack Complete for '{file}' in {elapsed:.2f} seconds", tag="EXTRACTING_END")
             os.remove(destination_file)
-            log_info(f"Removed ZIP file '{file}' after extraction")
+            log_info(f"Removed ZIP file '{file}' after extraction", tag="DELETING_FILE")
 
         except HTTPError as e:
             log_error(f"HTTP error {e.code} {e.reason} while downloading '{file}'")
@@ -355,7 +359,7 @@ def process_deletes(delete_folders, aircraft_id):
         if os.path.isdir(target_folder):
             try:
                 shutil.rmtree(target_folder)
-                log_info(f"Deleting {target_folder}")
+                log_info(f"Deleting {target_folder}", tag="DELETING_FOLDER")
             except Exception as e:
                 log_error(f"Failed to delete {target_folder}: {e}")
         else: 
@@ -364,7 +368,24 @@ def process_deletes(delete_folders, aircraft_id):
 def get_working_folder(aircraft_id):
     return os.path.normpath(os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"]))
 
+def set_current_aircraft(new_id):
+    global current_aircraft_id
+    current_aircraft_id = new_id
 
+def startup(show_warning=False):
+    logging.info(f"PROGRAM_START  |  version={software_version}  |  current_aircraft_id='{current_aircraft_id}'")
+    if show_warning:
+        print("Please run the program using interface.py, not main.py")
+
+def shutdown():
+    logging.info(f"PROGRAM_END  |  version={software_version}")
+
+# Register shutdown to always run at exit
+atexit.register(shutdown)
+
+if __name__ == "__main__":
+    startup(show_warning=True)
+    log_error(f"Program launched from main.py, please run the program from interface.py")
 
 # status, data = get_remote_updates(current_aircraft_id)
 # if status == "ok":
@@ -385,5 +406,3 @@ def get_working_folder(aircraft_id):
 # Then we want to start actually downloading and unzipping files from the server
 # Then we collate the deletes and process them
 # Then we update the versons file. This way if something fails in process and we have to restart, we're still on the old version
-logging.info(f"Program End")
-

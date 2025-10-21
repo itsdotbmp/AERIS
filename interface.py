@@ -239,6 +239,7 @@ def show_download_status(stdscr, files_to_download, aircraft_id):
     
 
 if __name__ == "__main__":
+    main.startup()
     curses.wrapper(main_curses)
 
     ## FOR NEXT TIME, ADD A WAY TO SEE THE DELETES LIKE THE DOWNLOADS CURRENTLY ARE
