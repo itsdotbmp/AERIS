@@ -1,6 +1,12 @@
 import curses
 import main
 
+"""
+Copyright (c) 2025 YourHandle
+Released under the MIT License.
+See LICENSE.txt for full license text.
+"""
+
 def main_curses(stdscr):
     curses.curs_set(0) 
     title = "86th vFW Livery Tool"
@@ -56,6 +62,7 @@ def start_screen(stdscr, title, current_aircraft, working_folder, local_version,
         stdscr.attroff(curses.A_BOLD)
         stdscr.addstr(y, 4 + label_width, f": {value}")
 
+    draw_disclaimer(stdscr)
     stdscr.refresh()
 
     menu_y = 9
@@ -114,6 +121,7 @@ def check_updates_screen(stdscr, title, aircraft_id):
     stdscr.addstr(1, 2, title)
     stdscr.attroff(curses.A_UNDERLINE | curses.A_BOLD)
 
+    draw_disclaimer(stdscr)
     stdscr.refresh()
     y = 4
 
@@ -230,6 +238,8 @@ def show_download_status(stdscr, files_to_download, aircraft_id):
             pad_y += 1
 
         pad.refresh(pad_y, 0, 0, 0, max_y -2, max_x -1)
+        draw_disclaimer(stdscr)
+        stdscr.refresh()
     
 
     # call process downloads with the callback
@@ -246,7 +256,9 @@ def show_download_status(stdscr, files_to_download, aircraft_id):
     if last_line + 3 > max_y - 1:
         pad_y = last_line + 3 - max_y + 1  # scroll down if necessary
     pad.refresh(pad_y, 0, 0, 0, max_y - 2, max_x - 1)
-
+    
+    draw_disclaimer(stdscr)
+    stdscr.refresh()
     stdscr.getch()
     return "downloads_complete"
         
@@ -311,6 +323,14 @@ def show_popup(stdscr, message_lines, msg_type="info"):
     win.clear()
     stdscr.refresh()
 
+def draw_disclaimer(stdscr):
+    max_y, max_x = stdscr.getmaxyx()
+    disclaimer = "Software provided 'AS IS' with no warranty. See LICENSE for details."
+    x = (max_x - len(disclaimer)) // 2
+    y = max_y - 1
+    stdscr.attron(curses.A_DIM)
+    stdscr.addstr(y, x, disclaimer)
+    stdscr.attroff(curses.A_DIM)
     
 if __name__ == "__main__":
     main.startup()
