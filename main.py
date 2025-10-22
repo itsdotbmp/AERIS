@@ -10,6 +10,7 @@ import inspect
 import time
 import zipfile
 import atexit
+from urllib.error import HTTPError, URLError, ContentTooShortError
 
 software_version = "0.0.1"
 
@@ -343,12 +344,20 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
 
         except HTTPError as e:
             log_error(f"HTTP error {e.code} {e.reason} while downloading '{file}'")
+            if update_callback:
+                update_callback(f"ERROR: {file} - {e.code} {e.reason}", file=file, action="download", error=True)
         except URLError as e:
             log_error(f"Network error while downloading '{file}': {e}")
+            if update_callback:
+                update_callback(f"ERROR: {file} - Network Error - {e}", file=file, action="download", error=True)
         except ContentTooShortError as e:
             log_error(f"Download incomplete for '{file}': {e}")
+            if update_callback:
+                update_callback(f"ERROR: {file} - Download Incomplete - {e}", file=file, action="download", error=True)
         except (OSError, PermissionError) as e:
             log_error(f"Local file error for '{file}': {e}")
+            if update_callback:
+                update_callback(f"ERROR: {file} - local file issue {e}", file=file, action="download", error=True)
 
 def process_deletes(delete_folders, aircraft_id):
     working_folder = os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"])
