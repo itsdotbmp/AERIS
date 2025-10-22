@@ -13,16 +13,24 @@ import atexit
 from urllib.error import HTTPError, URLError, ContentTooShortError
 
 software_version = "0.0.1"
+## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
 
+# Handle getting the local root folder we're in depending if running the script, or the exe
+def get_base_dir():
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
+    
 # Import our JSON config file #
-config_path = os.path.join(os.path.dirname(__file__), "config.json")
+config_path = os.path.join(get_base_dir(), "config.json")
 
 with open(config_path, "r", encoding="utf-8") as f:
     config = json.load(f)
 
 ## READING CONFIG FILE ##
 # Accessing our config variables
-base_dir = config["program"].get("base_dir") or os.path.dirname(__file__)
+base_dir = config["program"].get("base_dir") or get_base_dir()
 version_filename = config["program"].get("version_filename") or "version.txt"
 
 # Grab default aircraft ID from config
@@ -98,7 +106,7 @@ current_aircraft_id = default_aircraft_id
 ## Set user_delete to false, the UI changes this
 user_delete = False
 
-
+    
 # Helper to always get the correct aircraft_id, 
 # allows for batch operations in the future, or checking all aircraft for updates etc.
 def get_local_version_file(aircraft_id):
@@ -212,7 +220,7 @@ def get_remote_version(url):
                 if line.lower().startswith("release-"):
                     return line
     except Exception as e:
-        print(f"Failed to get remote version: {e}")
+        log_error(f"Failed to get remote version: {e}", include_args=True)
         return None
 
 
@@ -220,18 +228,14 @@ def get_remote_updates(aircraft_id):
     local_newest = get_latest_release(get_local_version_file(aircraft_id)) or "release-0.0.0"
     server_newest = get_remote_version(get_server_version_file(aircraft_id))
     if server_newest is None:
-        print("Cannot fetch server version. Please check your network, or the URL.")
         log_error(f"get_remote_updates({aircraft_id}):  Cannot fetch server version", include_args=True)
         return "error", "remote_fetch_failed, server_newest is None"
 
     if not is_newer(local_newest, server_newest):
-        print("Up to date!")
         log_info(f"UP_TO_DATE  |  local version {local_newest} matches {server_newest}. Up to Date!", include_args=True)
         return "up_to_date", ([],[])
 
     # New Update is available
-    print(f"Local Version: {local_newest}")
-    print(f"Server Version: {server_newest}")
     log_info(f"Local Version: {local_newest}", include_args=True)
     log_info(f"Server Version: {server_newest}", include_args=True)
     
@@ -239,13 +243,13 @@ def get_remote_updates(aircraft_id):
     try:
         urllib.request.urlretrieve(get_server_version_file(aircraft_id), server_version_file)
         msg = f"Downloaded server version file to: '{server_version_file}'"
-        print(msg)
+        #print(msg)
         log_info(f"{msg}", include_args=True)
 
         # parse server file and collect updates
         download_files, delete_folders = parse_server_file(server_version_file, local_newest, server_newest)
-        print("\nFiles to download: ", download_files)
-        print("\nFolders to delete: ", delete_folders)
+        #print("\nFiles to download: ", download_files)
+        #print("\nFolders to delete: ", delete_folders)
 
         log_info(f"found the following files to download: {download_files}", include_args=True)
         log_info(f"found the following files or folders to remove: {delete_folders}", include_args=True)
@@ -259,13 +263,13 @@ def get_remote_updates(aircraft_id):
 
 
 def clean_up_operation(update = True, delete = True, echo = True):
-    print("\n")
+    #print("\n")
     if update:
         try:
             shutil.copyfile(server_version_file, get_local_version_file(current_aircraft_id))
             log_info(f"ran and replaced '{get_local_version_file(current_aircraft_id)}' with '{server_version_file}'", include_args=True)
         except FileNotFoundError:
-            print(f"File not found: {server_version_file}")
+            #print(f"File not found: {server_version_file}")
             log_error(f"File not found to copy: '{server_version_file}'", include_args=True)
         if echo:
             print(f"Updated '{get_local_version_file(current_aircraft_id)}' with the version from the server.")
@@ -415,3 +419,9 @@ if __name__ == "__main__":
 # Then we want to start actually downloading and unzipping files from the server
 # Then we collate the deletes and process them
 # Then we update the versons file. This way if something fails in process and we have to restart, we're still on the old version
+
+
+## ADD A LINE TO THE INTERFACE FOR THE FILES DOWNLOAD PAGE TO TELL THE USER WHERE THE FILES GOT DOWNLOADED AND EXTRACTED TOO
+# LIKE "FILES DOWNLOADED AND EXTRACTED TO {folder}".
+
+# ADD 
