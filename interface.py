@@ -36,6 +36,9 @@ def main_curses(stdscr):
     
 
 def start_screen(stdscr, title, current_aircraft, working_folder, local_version, current_aircraft_id):
+    """
+    Start screen for application, shows the current selected aircraft information and menu
+    """
     curses.start_color()
     stdscr.clear()
 
@@ -70,6 +73,9 @@ def start_screen(stdscr, title, current_aircraft, working_folder, local_version,
     return menu_y, menu_x
     
 def menu_vertical(stdscr, menu_y, menu_x, options):
+    """
+    Reusable vertical selection menu, takes input for location.
+    """
     current_index = 0
     num_options = len(options)
 
@@ -99,6 +105,10 @@ def menu_vertical(stdscr, menu_y, menu_x, options):
             return options[current_index]
         
 def check_updates_screen(stdscr, title, aircraft_id):
+    """
+    Check for available updates on the remote version text file.
+    Shows what files would be downloaded and deleted by the update. 
+    """
     try:
         status, data = main.get_remote_updates(aircraft_id)
     except Exception as e:
@@ -175,16 +185,50 @@ def check_updates_screen(stdscr, title, aircraft_id):
         if download_files:
             download_status = show_download_status(stdscr, download_files, aircraft_id)
         if download_status =="downloads_complete" and delete_folders:
-            pass
+            confirmed = show_delete_screen(stdscr, delete_folders, aircraft_id)
+            if confirmed:
+                show_delete_status(stdscr, delete_folders, aircraft_id)
+            else:
+                return
             # main.process_deletes(delete_folders, aircraft_id)
-        main.clean_up_operation(False, False, True)
+        main.clean_up_operation(False, False, False)
         return        
     
     elif selection == "Cancel update":
         # Return to main menu!
         return
     
+def show_delete_screen(stdscr, delete_folders, aircraft_id):
+    """
+    Show the list of folders to delete, confirm action, and process deletions
+    with live updates using the callback system.
+    """
+    curses.curs_set(0)
+    stdscr.clear()
+    max_y, max_x = stdscr.getmaxyx()
+    
+    # Draw header
+    stdscr.attron(curses.A_BOLD | curses.A_UNDERLINE)
+    stdscr.addstr(1, 2, "Confirm Folders to Delete")
+    stdscr.attroff(curses.A_BOLD | curses.A_UNDERLINE)
+    
+    # List folders
+    y = 3
+    for folder in delete_folders:
+        stdscr.addstr(y, 4, f"- {folder}")
+        y += 1
+    
+    # Add menu for confirmation
+    confirm_options = ["Confirm Delete", "Cancel"]
+    choice = menu_vertical(stdscr, y + 1, 2, confirm_options)
+    
+    return choice == "Confirm Delete"
+
+
 def show_download_status(stdscr, files_to_download, aircraft_id):
+    """
+    Show the download progress and status of the files in the update
+    """
     curses.curs_set(0)
     curses.start_color()
     curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)  # downloading bg
@@ -261,7 +305,50 @@ def show_download_status(stdscr, files_to_download, aircraft_id):
     stdscr.refresh()
     stdscr.getch()
     return "downloads_complete"
-        
+
+def show_delete_status(stdscr, delete_folders, aircraft_id):
+    """
+    Show the status and progress of deleting the folders from folders_delete.
+    """
+    max_y, max_x = stdscr.getmaxyx()
+    pad_height = max(len(delete_folders) * 2 + 10, max_y)
+    pad_width = max_x - 4
+    pad = curses.newpad(pad_height, pad_width)
+    pad_y = 0
+    y = 2
+
+    # define callback
+    folder_lines = {}
+    def update_callback(text, folder=None, done=False, error=False):
+        nonlocal y, pad_y
+        if folder not in folder_lines:
+            folder_lines[folder] = y
+            line_y = y
+            y += 1
+        else:
+            line_y = folder_lines[folder]
+
+        if error:
+            attr = curses.A_BOLD | curses.color_pair(3)
+        elif done:
+            attr = curses.color_pair(2)
+        else:
+            attr = curses.color_pair(1)
+
+        pad.move(line_y, 2)
+        pad.clrtoeol()
+        pad.addstr(line_y, 2, text, attr)
+        pad.refresh(pad_y, 0, 0, 0, max_y - 2, max_x - 1)
+        draw_disclaimer(stdscr)
+
+    # call process_deletes with callback
+    main.process_deletes(delete_folders, aircraft_id, update_callback=update_callback)
+
+    pad.addstr(y + 1, 2, "Deletion complete! Press any key to continue.", curses.A_BOLD)
+    pad.refresh(pad_y, 0, 0, 0, max_y - 2, max_x - 1)
+    draw_disclaimer(stdscr)
+    stdscr.refresh()  
+    stdscr.getch()  
 
 def show_popup(stdscr, message_lines, msg_type="info"):
     # Display a centered popup screen with border and styled text

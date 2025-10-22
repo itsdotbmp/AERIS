@@ -363,20 +363,28 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
             if update_callback:
                 update_callback(f"ERROR: {file} - local file issue {e}", file=file, action="download", error=True)
 
-def process_deletes(delete_folders, aircraft_id):
+def process_deletes(delete_folders, aircraft_id, update_callback=None):
     working_folder = os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"])
 
     for folder in delete_folders:
-        folder = os.path.splitext(folder)[0]
-        target_folder = os.path.normpath(os.path.join(working_folder, folder))
+        folder_name = os.path.splitext(folder)[0]
+        target_folder = os.path.normpath(os.path.join(working_folder, folder_name))
         if os.path.isdir(target_folder):
             try:
+                if update_callback:
+                    update_callback(f"Deleting folder: {folder_name}", folder=folder_name, done=False)
                 shutil.rmtree(target_folder)
+                if update_callback:
+                    update_callback(f"Deleted folder: {folder_name}", folder=folder_name, done=True)
                 log_info(f"Deleting {target_folder}", tag="DELETING_FOLDER")
             except Exception as e:
                 log_error(f"Failed to delete {target_folder}: {e}")
+                if update_callback:
+                    update_callback(f"ERROR deleting {folder_name}: {e}", folder=folder_name, error=True)
         else: 
             log_info(f"Folder does not exist: {target_folder}")
+            if update_callback:
+                update_callback(f"Folder does not exist: {folder_name}", folder=folder_name)
 
 def get_working_folder(aircraft_id):
     return os.path.normpath(os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"]))
