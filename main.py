@@ -105,12 +105,15 @@ def log_error(msg, include_args=False):
 current_aircraft_id = default_aircraft_id
 ## Set user_delete to false, the UI changes this
 user_delete = False
-
     
 # Helper to always get the correct aircraft_id, 
 # allows for batch operations in the future, or checking all aircraft for updates etc.
 def get_local_version_file(aircraft_id):
-    return os.path.join(base_dir, f"{aircraft_id}_{version_filename}")
+    try:
+        return os.path.join(base_dir, f"{aircraft_id}_{version_filename}")
+    except Exception as e:
+        log_error(f"Failed to construct local version file path: {e}", include_args=True)
+        return None
 
 
 # Grab the URL to the remote location a livery exists
@@ -139,6 +142,8 @@ def parse_release(release_str):
 
 
 def is_newer(local, remote):
+    if local == None:
+        return True # treat remote as newer if missing a local file or no release found.
     # Returns true if remote > local
     return parse_release(remote) > parse_release(local)
 
@@ -204,12 +209,16 @@ def parse_server_file(filename, local_version, server_version):
 
 
 def get_latest_release(filename):
-    with open(filename, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line.lower().startswith("release-"):
-                return line # first-release is newest
-    return None
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.lower().startswith("release-"):
+                    return line # first-release is newest
+        return None
+    except (OSError, FileNotFoundError) as e:
+        log_error(f"Failed to read local release file '{filename}': {e}")
+        return None
 
 
 def get_remote_version(url):
@@ -225,7 +234,7 @@ def get_remote_version(url):
 
 
 def get_remote_updates(aircraft_id):
-    local_newest = get_latest_release(get_local_version_file(aircraft_id)) or "release-0.0.0"
+    local_newest = get_latest_release(get_local_version_file(aircraft_id)) or None
     server_newest = get_remote_version(get_server_version_file(aircraft_id))
     if server_newest is None:
         log_error(f"get_remote_updates({aircraft_id}):  Cannot fetch server version", include_args=True)

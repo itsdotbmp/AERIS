@@ -6,33 +6,35 @@ Copyright (c) 2025 YourHandle
 Released under the MIT License.
 See LICENSE.txt for full license text.
 """
+title = "86th vFW Livery Tool"
 
 def main_curses(stdscr):
-    curses.curs_set(0) 
-    title = "86th vFW Livery Tool"
-    current_aircraft = main.aircrafts[main.current_aircraft_id]
-    working_folder = main.get_working_folder(main.current_aircraft_id)
-    local_version = main.get_latest_release(main.get_local_version_file(main.current_aircraft_id))
-    current_aircraft_id = main.current_aircraft_id
+    curses.curs_set(0)  
     # Start screen
 
     menu_list = ("Change Aircraft", "Check for Updates", "Config", "Quit")
 
     #show menu
     while True:
-        menu_y, menu_x = start_screen(stdscr, title, current_aircraft, working_folder, local_version, current_aircraft_id )
+        menu_y, menu_x = start_screen(stdscr, title, main.aircrafts[main.current_aircraft_id], main.get_working_folder(main.current_aircraft_id), main.get_latest_release(main.get_local_version_file(main.current_aircraft_id)), main.current_aircraft_id )
         choice = menu_vertical(stdscr, menu_y, menu_x, menu_list)
         if choice == "Quit":
             break
         elif choice == "Change Aircraft":
-            stdscr.addstr(14, 2, f"{choice}")
+            selected_id = show_select_aircraft_screen(stdscr, main.aircrafts[main.current_aircraft_id], main.current_aircraft_id)
+            if selected_id:
+                main.set_current_aircraft(selected_id)
         elif choice == "Check for Updates":
-            check_updates_screen(stdscr, title, current_aircraft_id)
+            check_updates_screen(stdscr, title, main.current_aircraft_id)
         elif choice == "Config":
             stdscr.addstr(14, 2, f"{choice}")
 
 
-
+def show_title(stdscr, title):
+    # Add a bold title
+    stdscr.attron(curses.A_UNDERLINE | curses.A_BOLD)
+    stdscr.addstr(1, 2, title)
+    stdscr.attroff(curses.A_UNDERLINE | curses.A_BOLD)
     
 
 def start_screen(stdscr, title, current_aircraft, working_folder, local_version, current_aircraft_id):
@@ -42,10 +44,16 @@ def start_screen(stdscr, title, current_aircraft, working_folder, local_version,
     curses.start_color()
     stdscr.clear()
 
-    # Add a bold title
-    stdscr.attron(curses.A_UNDERLINE | curses.A_BOLD)
-    stdscr.addstr(1, 2, title)
-    stdscr.attroff(curses.A_UNDERLINE | curses.A_BOLD)
+    show_title(stdscr, title)
+
+    try:
+        _ = working_folder # checking if the folder is valid
+    except Exception:
+        working_folder = "<INVALID FOLDER>" # error message essentially
+    try:
+        _ = local_version # checking if i can get local version
+    except Exception:
+        local_version = None
 
     info = [
         ("Current Aircraft", current_aircraft["name"]),
@@ -103,7 +111,9 @@ def menu_vertical(stdscr, menu_y, menu_x, options):
             # You pressed a number key!
             current_index = key - ord('1')
             return options[current_index]
-        
+
+
+
 def check_updates_screen(stdscr, title, aircraft_id):
     """
     Check for available updates on the remote version text file.
@@ -409,6 +419,87 @@ def show_popup(stdscr, message_lines, msg_type="info"):
     # Clear popup after key press
     win.clear()
     stdscr.refresh()
+
+def show_select_aircraft_screen(stdscr, current_aircraft, current_aircraft_id):
+    curses.curs_set(0)
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE) # highlight
+    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK) # normal
+
+    stdscr.clear()
+    stdscr.refresh()
+
+    show_title(stdscr, title)
+
+    # Pull list of aircraft from config
+    aircraft_list = [(aid, main.aircrafts[aid]["name"]) for aid in main.aircrafts]
+                     
+    max_y, max_x = stdscr.getmaxyx()
+    pad_visible_start = 6 # lets us sit right below the horizontal line
+    pad_visible_end = max_y - 9 # gives us 7 lines of space at the bottom
+    table_height = pad_visible_end - pad_visible_start # leave some room for buttons etc at the bottom
+
+    pad_height = max(len(aircraft_list), table_height)
+    pad_width = max_x - 4
+    pad = curses.newpad(pad_height, pad_width)
+
+    pad_y = 0 # where scroll starts, we push this down as we scroll off the screen
+    highlight_index = 0
+    
+    while True:
+        pad.clear()
+        y = 0
+        # draw the header!
+        stdscr.addstr(4, 2, "Aircraft Name             ID", curses.A_BOLD)
+        stdscr.addstr(5, 2, "─" * (max_x - 4), curses.A_DIM)
+        stdscr.addstr(max_y - 9, 2, "─" * (max_x - 4), curses.A_DIM)
+
+        #Draw aircraft rows in pad
+        for i, (aid, name) in enumerate(aircraft_list):
+            if i == highlight_index:
+                pad.addstr(i, 0, f"> {name: <25} {aid}", curses.color_pair(1))
+            else:
+                pad.addstr(i, 2, f"{name: <25} {aid}", curses.color_pair(2))
+
+        # Scroll logic: Make sure the selected line is always visible
+        if highlight_index < pad_y:
+            pad_y = highlight_index
+        elif highlight_index >= pad_y + table_height:
+            pad_y = highlight_index - table_height + 1
+        
+        pad.refresh(pad_y, 0, pad_visible_start, 2, pad_visible_start + table_height - 1, max_x - 3)
+
+        # Draw current selection below table
+        stdscr.addstr(max_y - 8, 2, f"Current Selection: [ {current_aircraft["name"]: <25} {current_aircraft_id} ]", curses.A_BOLD)
+        
+        # Draw psuedo buttons
+        select_btn = "(S)elect"
+        cancel_btn = "(C)ancel"
+        btn_y = max_y - 5
+        select_x = (max_x // 2) - len(select_btn) - 2
+        cancel_x = (max_x // 2) + 2
+        stdscr.addstr(btn_y, select_x, select_btn, curses.A_REVERSE)
+        stdscr.addstr(btn_y, cancel_x, cancel_btn, curses.A_REVERSE)
+
+        # Draw Scroll hint
+        scroll_hint = "Use ↑ ↓ to scroll through aircraft"
+        scroll_hint_width = (max_x //2) - (len(scroll_hint) // 2)
+        stdscr.addstr(max_y - 3, scroll_hint_width, scroll_hint, curses.A_DIM)
+
+        draw_disclaimer(stdscr)
+        stdscr.refresh()
+
+        # Handle key input
+        key = stdscr.getch()
+        if key in [curses.KEY_UP, ord('k')]:
+            highlight_index = max(0, highlight_index - 1)
+        elif key in [curses.KEY_DOWN, ord('j')]:
+            highlight_index = min(len(aircraft_list) - 1, highlight_index + 1)
+        elif key in [ord('s'), ord('\n'), curses.KEY_ENTER]:
+            return aircraft_list[highlight_index][0]
+        elif key in [ord('c'), 27]:  # ESC
+            return None
+
 
 def draw_disclaimer(stdscr):
     max_y, max_x = stdscr.getmaxyx()
