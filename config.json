@@ -3,8 +3,7 @@
     "program": {
         "server_url": "https://86thvfw.com/dcsrepo/liveries",
         "version_filename": "version.txt",
-        "server_version_file": "server_version.txt",
-        "base_dir": null
+        "server_version_file": "server_version.txt"
     },
     "logging": {
         "log_file_name": "liveries.log",

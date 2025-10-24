@@ -8,9 +8,15 @@ See LICENSE.txt for full license text.
 """
 title = "86th vFW Livery Tool"
 
+
 def main_curses(stdscr):
     curses.curs_set(0)  
     # Start screen
+
+    config_ok = main.load_config()
+    if not config_ok:
+        main_config_screen(stdscr)
+        return
 
     menu_list = ("Change Aircraft", "Check for Updates", "Config", "Quit")
 
@@ -27,7 +33,7 @@ def main_curses(stdscr):
         elif choice == "Check for Updates":
             check_updates_screen(stdscr, title, main.current_aircraft_id)
         elif choice == "Config":
-            stdscr.addstr(14, 2, f"{choice}")
+            main_config_screen(stdscr)
 
 
 def show_title(stdscr, title):
@@ -500,6 +506,19 @@ def show_select_aircraft_screen(stdscr, current_aircraft, current_aircraft_id):
         elif key in [ord('c'), 27]:  # ESC
             return None
 
+def main_config_screen(stdscr):
+    stdscr.clear()
+    show_title(stdscr, "Configuration Missing")
+    stdscr.addstr(4, 2, "Critical configuration data is missing.")
+    stdscr.addstr(6, 2, "Press any key to exit.")
+    stdscr.refresh()
+    stdscr.getch()
+
+    ## In the future, if the config file itself is just missing, we should generate a blank one,
+    ## and then push to a config/startup screen to fill in the critical information.
+    ## The routing to handle sending us to a config screen with missing critical information is
+    ## the same routing we would use for a missing file. The default created file would still be
+    ## missing those fields as they have to be added by the user.
 
 def draw_disclaimer(stdscr):
     max_y, max_x = stdscr.getmaxyx()
@@ -513,5 +532,3 @@ def draw_disclaimer(stdscr):
 if __name__ == "__main__":
     main.startup()
     curses.wrapper(main_curses)
-
-    ## FOR NEXT TIME, ADD A WAY TO SEE THE DELETES LIKE THE DOWNLOADS CURRENTLY ARE

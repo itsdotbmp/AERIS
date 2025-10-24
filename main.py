@@ -14,6 +14,7 @@ from urllib.error import HTTPError, URLError, ContentTooShortError
 import traceback
 
 software_version = "0.0.1"
+current_aircraft_id = None 
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
 
 # Handle getting the local root folder we're in depending if running the script, or the exe
@@ -23,56 +24,117 @@ def get_base_dir():
     else:
         return os.path.dirname(os.path.abspath(__file__))
     
-# Import our JSON config file #
-config_path = os.path.join(get_base_dir(), "config.json")
+def load_json():
+    #load config JSON
+    global config
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = json.load(f)
+    
+try:
+    base_dir =  get_base_dir()
+    config_file = os.path.join(base_dir, "config.json")
 
-with open(config_path, "r", encoding="utf-8") as f:
-    config = json.load(f)
+    # Make sure we have a config file
+    if not os.path.exists(config_file):
+        #Create a boilerplate config
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump({
+                "program": {
+                    "version_filename": "version.txt",
+                    "server_url": "",
+                    "server_version_file": "server_version.txt"
+                },
+                "environment": {
+                    "liveries_folder": ""
+                },
+                "logging": {
+                    "log_file_name": "liveries.log",
+                    "max_bytes": 500000,
+                    "backup_count": 5
+                },
+                "aircrafts": {},
+                "default_aircraft_id": None
+            }, f, indent=4)
+    
+    load_json()
 
-## READING CONFIG FILE ##
-# Accessing our config variables
-base_dir = config["program"].get("base_dir") or get_base_dir()
-version_filename = config["program"].get("version_filename") or "version.txt"
+    ## LOGGING CONFIG ##
+    log_file_name = config["logging"].get("log_file_name", "liveries.log")
+    max_bytes = config["logging"].get("max_bytes", 500000)
+    backup_count = config["logging"].get("backup_count", 5)
+    # Log file path using our base_dir
+    log_file_path = os.path.join(base_dir, log_file_name)
 
-# Grab default aircraft ID from config
-aircrafts = config.get("aircrafts", {})
-if config.get("default_aircraft_id"):
-    default_aircraft_id = config["default_aircraft_id"]
-elif aircrafts:
-    default_aircraft_id = next(iter(aircrafts))
-else:
-    raise ValueError("No valid aircraft ID's found in config file.")
+    ## LOGGING SETUP ##
+    logging_handler = RotatingFileHandler(
+        log_file_path,
+        maxBytes=max_bytes,
+        backupCount=backup_count
+    )
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(message)s",
+        handlers=[logging_handler]
+    )
+    
+except Exception as e:
+    # if anything up to this point fails, crash - we can't continue
+    raise RuntimeError(f"Critical startup failure: {e}")
 
-# Base liveries folder to use with aircraft ID's etc           
-liveries_folder = config["environment"]["liveries_folder"]
+def load_config():
+    """
+    Loads config.json, updates the global variables, and handles missing fields.
+    Returns true if config is valid, and False if critical fields are missing.
+    """
+    
+    global version_filename
+    global liveries_folder
+    global server_url
+    global server_version_file
+    global aircrafts
+    global default_aircraft_id
+    global current_aircraft_id
 
-# Clean URL to the server for connecting
-server_url = config["program"]["server_url"].rstrip("/")
+    load_json()
+    
+    #Critial required fields
+    try:
+        version_filename = config["program"].get("version_filename") or "version.txt"
+        log_info(f"version_filename='{version_filename}'",tag="SET CONFIG")
+        server_url = config["program"].get("server_url")
+        if not server_url:
+            log_error("server_url missing in config")
+            return False
+        server_url = server_url.rstrip("/")
+        log_info(f"server_url='{server_url}'",tag="SET CONFIG")
+        server_version_file = os.path.join(base_dir, config["program"].get("server_version_file") or "server_version.txt")
+        log_info(f"server_version_file='{server_version_file}'",tag="SET CONFIG")
 
-#Local server version temp file, generic name
+        liveries_folder = config["environment"].get("liveries_folder")
+        if not liveries_folder:
+            log_error("liveries_folder missing; user must confirm in config editor")
+            return False
+        log_info(f"liveries_folder = '{liveries_folder}'",tag="SET CONFIG")
+        
+        #Aircrafts
+        aircrafts = config.get("aircrafts", {})
+        default_aircraft_id = config.get("default_aircraft_id") or (next(iter(aircrafts)) if aircrafts else None)
+        if not default_aircraft_id:
+            log_error("No default aircraft ID found in config")
+            return False
+        log_info(f"default_aircraft_id='{default_aircraft_id}'",tag="SET CONFIG")
+        if current_aircraft_id is None or current_aircraft_id not in aircrafts:
+            current_aircraft_id = default_aircraft_id
+            log_info(f"current_aircraft_id was none or not in aircrafts, set to '{default_aircraft_id}'",tag="SET CONFIG")
+        return True
+    
+    except Exception as e:
+        log_error(f"Critical config error: {e}")
+        return False
 
-server_version_file = os.path.join(base_dir, config["program"]["server_version_file"]) 
 
-## LOGGING CONFIG ##
-log_file_name = config["logging"]["log_file_name"]
-max_bytes = config["logging"]["max_bytes"]
-backup_count = config["logging"]["backup_count"]
-# Log file path using our base_dir
-log_file_path = os.path.join(base_dir, log_file_name)
+    
 
-# End of config reading #
-
-## LOGGING SETUP ##
-logging_handler = RotatingFileHandler(
-    log_file_path,
-    maxBytes=max_bytes,
-    backupCount=backup_count
-)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(message)s",
-    handlers=[logging_handler]
-)
 def log_info(msg, tag=None, include_args=False):
     # Automatically puts the caller function name, optionally including its args
     frame = inspect.stack()[1]
@@ -102,10 +164,6 @@ def log_error(msg, include_args=False):
     else:
         logging.error(f"ERROR  |  {func_name}()  |  {msg}")
 
-## Set default aircraft ID to global, this changes when the user selects a different aircraft
-current_aircraft_id = default_aircraft_id
-## Set user_delete to false, the UI changes this
-user_delete = False
     
 # Helper to always get the correct aircraft_id, 
 # allows for batch operations in the future, or checking all aircraft for updates etc.
@@ -419,7 +477,7 @@ def set_current_aircraft(new_id):
     current_aircraft_id = new_id
 
 def startup(show_warning=False):
-    logging.info(f"PROGRAM_START  |  version={software_version}  |  current_aircraft_id='{current_aircraft_id}'")
+    logging.info(f"PROGRAM_START  |  version={software_version}")
     if show_warning:
         print("Please run the program using interface.py, not main.py")
 
