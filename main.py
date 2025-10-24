@@ -11,6 +11,7 @@ import time
 import zipfile
 import atexit
 from urllib.error import HTTPError, URLError, ContentTooShortError
+import traceback
 
 software_version = "0.0.1"
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
@@ -120,8 +121,14 @@ def get_local_version_file(aircraft_id):
 def get_remote_livery_url(aircraft_id):
     remote_subfolder = aircrafts[aircraft_id].get("remote_subfolder",None)
     if remote_subfolder:
-        return f"{server_url}/{remote_subfolder.lstrip("/").rstrip("/")}/"
+        if remote_subfolder.startswith(("http://", "https://")):
+            # already a full URL, treat as absolute, ensure a trailing slash
+            return remote_subfolder.rstrip("/") + "/"
+        else:
+            # return relative path, appended to server_url
+            return f"{server_url}/{remote_subfolder.lstrip("/").rstrip("/")}/"
     else:
+        # No subfolder given, return root server_url
         return f"{server_url}/"
     
 
@@ -160,7 +167,11 @@ def parse_server_file(filename, local_version, server_version):
     delete_folders = set()
     releases_to_process = [] # how many releases between local and current
 
-    local_tuple = parse_release(local_version)
+    if local_version:
+        local_tuple = parse_release(local_version)
+    else:
+        local_tuple = None
+
     server_tuple = parse_release(server_version)
 
     # Step 1: Read all the lines, build blocks for each release
@@ -182,8 +193,10 @@ def parse_server_file(filename, local_version, server_version):
     # Step 2: Check which releases are newer then the local, up to the servers current version
     for release in release_blocks.keys():
         release_tuple = parse_release(release)
-        if local_tuple < release_tuple <= server_tuple:
+        if local_tuple is None or (local_tuple < release_tuple <= server_tuple):
             releases_to_process.append(release) # builds a list of releases we have to go through to collect files
+            log_info(f"{release} found in release_blocks, and added to list of releases", include_args=True)
+        
 
     # Step 3: Reverse the list, so we don't download deleted files, but do download them if they are re-added
     releases_to_process.reverse()
@@ -216,7 +229,7 @@ def get_latest_release(filename):
                 if line.lower().startswith("release-"):
                     return line # first-release is newest
         return None
-    except (OSError, FileNotFoundError) as e:
+    except Exception as e:
         log_error(f"Failed to read local release file '{filename}': {e}")
         return None
 
@@ -234,7 +247,7 @@ def get_remote_version(url):
 
 
 def get_remote_updates(aircraft_id):
-    local_newest = get_latest_release(get_local_version_file(aircraft_id)) or None
+    local_newest = get_latest_release(get_local_version_file(aircraft_id))
     server_newest = get_remote_version(get_server_version_file(aircraft_id))
     if server_newest is None:
         log_error(f"get_remote_updates({aircraft_id}):  Cannot fetch server version", include_args=True)
@@ -257,6 +270,7 @@ def get_remote_updates(aircraft_id):
 
         # parse server file and collect updates
         download_files, delete_folders = parse_server_file(server_version_file, local_newest, server_newest)
+
         #print("\nFiles to download: ", download_files)
         #print("\nFolders to delete: ", delete_folders)
 
@@ -266,7 +280,9 @@ def get_remote_updates(aircraft_id):
         return "ok", (download_files, delete_folders)
 
     except Exception as e:
-        msg = f"Failed to download or parse server file: '{e}'"
+         # Capture full traceback
+        tb = traceback.format_exc()
+        msg = f"Failed to download or parse server file: '{e}' | {tb}"
         log_error(f"{msg}", include_args=True)
         return "error", msg
 
@@ -417,28 +433,14 @@ if __name__ == "__main__":
     startup(show_warning=True)
     log_error(f"Program launched from main.py, please run the program from interface.py")
 
-# status, data = get_remote_updates(current_aircraft_id)
-# if status == "ok":
-#     download_files, delete_folders = data
-#     if download_files:
-#         process_downloads(download_files, current_aircraft_id)
-#     if delete_folders and user_delete:
-#         process_deletes(delete_folders, current_aircraft_id)
-# elif status == "up_to_date":
-#     pass
-# else:
-#     print("Error: ", data)
-
-# clean_up_operation(False,False,True)
-
-
-## Next steps are to start to check a remote server verson file instead of the local one
-# Then we want to start actually downloading and unzipping files from the server
-# Then we collate the deletes and process them
-# Then we update the versons file. This way if something fails in process and we have to restart, we're still on the old version
-
-
-## ADD A LINE TO THE INTERFACE FOR THE FILES DOWNLOAD PAGE TO TELL THE USER WHERE THE FILES GOT DOWNLOADED AND EXTRACTED TOO
-# LIKE "FILES DOWNLOADED AND EXTRACTED TO {folder}".
-
-# ADD 
+## TO DO :
+## ADD basic config editing ability, setting users saved games folder/liveries folder
+## updating URL to the correct server URL for the versions file
+## adding aircraft configs
+## editing aircraft configs
+## Changing the base folder where local files for the app are stored ?maybe?
+## 
+## Further work:
+## Readme, other documentation on how to use the client
+## Documentation on how to set up the server side and make releases
+## Build py exe file environment and test
