@@ -17,6 +17,27 @@ software_version = "0.0.1"
 current_aircraft_id = None 
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
 
+def generate_json_boilerplate():
+    with open(config_file, "w", encoding="utf-8") as file:
+        json.dump({
+            "config_version": 1,
+            "program": {
+                "server_url": None,
+                "version_filename": "version.txt",
+                "server_version_file": "server_version.txt"
+            },
+            "logging": {
+                "log_file_name": "liveries.log",
+                "max_bytes": 500000,
+                "backup_count": 5
+            },
+            "environment": {
+                "liveries_folder": None
+            },
+            "default_aircraft_id": None,
+            "aircrafts": {}
+        }, file, indent=4)
+
 # Handle getting the local root folder we're in depending if running the script, or the exe
 def get_base_dir():
     if getattr(sys, "frozen", False):
@@ -37,24 +58,7 @@ try:
     # Make sure we have a config file
     if not os.path.exists(config_file):
         #Create a boilerplate config
-        with open(config_file, "w", encoding="utf-8") as f:
-            json.dump({
-                "program": {
-                    "version_filename": "version.txt",
-                    "server_url": "",
-                    "server_version_file": "server_version.txt"
-                },
-                "environment": {
-                    "liveries_folder": ""
-                },
-                "logging": {
-                    "log_file_name": "liveries.log",
-                    "max_bytes": 500000,
-                    "backup_count": 5
-                },
-                "aircrafts": {},
-                "default_aircraft_id": None
-            }, f, indent=4)
+        generate_json_boilerplate()
     
     load_json()
 
