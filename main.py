@@ -15,6 +15,7 @@ import traceback
 
 software_version = "0.0.1"
 current_aircraft_id = None 
+title = "86th vFW Livery Tool"
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
 
 def generate_json_boilerplate():
@@ -473,6 +474,47 @@ def process_deletes(delete_folders, aircraft_id, update_callback=None):
             if update_callback:
                 update_callback(f"Folder does not exist: {folder_name}", folder=folder_name)
 
+def get_aircraft_info(aircraft_id):
+    """
+    Collect and return relevant data for a given aircraft_id.
+    Returns a dict with keys:
+        - id
+        - name
+        - folder
+        - target_folder
+        - local_version
+        - remote_version
+    """
+    aircraft = aircrafts.get(aircraft_id)
+    if not aircraft:
+        log_error(f"{aircraft_id} not found in aircrafts list.", include_args=True)
+        raise ValueError(f"Aircraft ID '{aircraft_id}' not found in aircrafts list.")
+    
+    name = aircraft.get("name", "Unknown Aircraft Config")
+    folder = aircraft.get("folder")
+    target_folder = os.path.normpath(os.path.join(liveries_folder, folder))
+
+    try:
+        local_version = get_latest_release(get_local_version_file(aircraft_id))
+    except Exception as e:
+        log_error(f"Unable to get latest local release version: {e}", include_args=True)
+        local_version = "Unknown"
+    
+    try:
+        remote_version = get_remote_version(get_server_version_file(aircraft_id))
+    except Exception as e:
+        log_error(f"Unable to get latest remote release version: {e}", include_args=True)
+        remote_version = "Unknown"
+
+    return {
+        "id": aircraft_id,
+        "name": name,
+        "folder": folder,
+        "target_folder": target_folder,
+        "local_version": local_version,
+        "remote_version": remote_version
+    }
+
 def get_working_folder(aircraft_id):
     return os.path.normpath(os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"]))
 
@@ -487,6 +529,15 @@ def startup(show_warning=False):
 
 def shutdown():
     logging.info(f"PROGRAM_END  |  version={software_version}")
+
+### ATOMIZED UNZIP AND TRACKING OF FILES // PSEUDO CODE
+def install_package(zip_path, dest_folder, manifest, package_id):
+    files = extract_with_manifest(zip_path, dest_folder)
+    manifest["installed_packages"][package_id] = {
+        "installed_at": datetime.now().isoformat(),
+        "files": files
+    }
+    save_manifest(manifest)
 
 # Register shutdown to always run at exit
 atexit.register(shutdown)

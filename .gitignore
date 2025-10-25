@@ -27,6 +27,5 @@ Thumbs.db
 
 # --- Testing or dev-only scripts ---
 devmode.bat
-livery.log
-f-4e-45mc_version.txt
-server_version.txt
+livery*.log
+*_version.txt
