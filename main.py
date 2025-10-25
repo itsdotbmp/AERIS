@@ -51,7 +51,21 @@ def load_json():
     global config
     with open(config_file, "r", encoding="utf-8") as f:
         config = json.load(f)
-    
+
+def custom_logging_namer(default_name):
+    """
+    Transforms default rotated names (base.log.1) into desired format (liveries1.log)
+    using config_log_file.
+    """
+    # default_name may look like '/path/to/base.log.1'
+    base_name, ext = os.path.splitext(log_file_name)
+    # split from the right-most '.' to get rotation number
+    parts = default_name.rsplit('.', 2)
+    if len(parts) == 3 and parts[2].isdigit():
+        number = parts[2]
+        return f"{base_name}{number}{ext}"
+    return default_name
+
 try:
     base_dir =  get_base_dir()
     config_file = os.path.join(base_dir, "config.json")
@@ -76,6 +90,7 @@ try:
         maxBytes=max_bytes,
         backupCount=backup_count
     )
+    logging_handler.namer = custom_logging_namer
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(message)s",
@@ -531,13 +546,13 @@ def shutdown():
     logging.info(f"PROGRAM_END  |  version={software_version}")
 
 ### ATOMIZED UNZIP AND TRACKING OF FILES // PSEUDO CODE
-def install_package(zip_path, dest_folder, manifest, package_id):
-    files = extract_with_manifest(zip_path, dest_folder)
-    manifest["installed_packages"][package_id] = {
-        "installed_at": datetime.now().isoformat(),
-        "files": files
-    }
-    save_manifest(manifest)
+# def install_package(zip_path, dest_folder, manifest, package_id):
+#     files = extract_with_manifest(zip_path, dest_folder)
+#     manifest["installed_packages"][package_id] = {
+#         "installed_at": datetime.now().isoformat(),
+#         "files": files
+#     }
+#     save_manifest(manifest)
 
 # Register shutdown to always run at exit
 atexit.register(shutdown)
