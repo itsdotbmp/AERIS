@@ -410,7 +410,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
             urllib.request.urlretrieve(file_url, destination_file)
             elapsed = time.time() - start_time
             if update_callback:
-                update_callback(f"Downloading: {file} - Done", file=file, action="download", done=True)
+                update_callback(f"Downloading: {file} - Success", file=file, action="download", done=True)
             log_info(f"Download Completed of '{file}' in {elapsed:.2f} seconds", tag="DOWNLOAD_END")
 
             # Unpack the file
@@ -443,7 +443,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                             update_callback(f"Extracting: {file}", file=file, action="extract", done=False)
                     zip_ref.extractall(extract_path)
                     if update_callback:
-                            update_callback(f"Extracting: {file} - Done", file=file, action="extract", done=True)
+                            update_callback(f" Extracting: {file} - Success", file=file, action="extract", done=True)
                     elapsed = time.time() - start_time
                     log_info(f"Unpack Complete for '{file}' in {elapsed:.2f} seconds", tag="EXTRACTING_END")
             os.remove(destination_file)

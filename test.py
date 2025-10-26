@@ -1,7 +1,8 @@
 import curses
 import traceback
 import main
-from controllers.update_controller import update_controller
+import views.ui_parts as ui
+from controllers.update_controller import _update_flow
 
 # You can change this to any valid aircraft identifier
 TEST_AIRCRAFT_ID = "f-4e-45mc"
@@ -9,23 +10,21 @@ TEST_AIRCRAFT_ID = "f-4e-45mc"
 def main_screen(stdscr):
     curses.curs_set(0)
     try:
+        ui.init_ui()
         main.load_config()
+
     except Exception as e:
         stdscr.addstr(2, 2, f"Failed to load config: {e}")
         stdscr.addstr(4, 2, "Press any key to exit.")
         stdscr.refresh()
         stdscr.getch()
         return
-    
-    stdscr.clear()
-    stdscr.addstr(0, 2, "=== Update Controller (REAL DATA TEST) ===", curses.A_BOLD)
-    stdscr.addstr(2, 2, f"Testing aircraft ID: {TEST_AIRCRAFT_ID}")
-    stdscr.addstr(4, 2, "Press any key to start...", curses.A_DIM)
-    stdscr.refresh()
+
+    stdscr.addstr(0, 0, "test", curses.color_pair(ui.COLOR_PAIRS["status green"]))
     stdscr.getch()
 
     try:
-        update_controller(stdscr, TEST_AIRCRAFT_ID)
+        _update_flow(stdscr, TEST_AIRCRAFT_ID)
     except Exception:
         stdscr.clear()
         stdscr.addstr(2, 2, "Unhandled Exception in test:", curses.A_BOLD)

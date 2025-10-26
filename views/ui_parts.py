@@ -5,6 +5,25 @@ import main
 Generic parts and pieces of UI that can be reused
 """
 
+def init_ui():
+    """
+    inits any UI required info that is shared across the program
+    """
+
+    curses.start_color()
+    curses.use_default_colors()
+    
+    global COLOR_PAIRS
+    COLOR_PAIRS = { name: i for i, name in enumerate([
+        "scrollbar",
+        "status green",
+        "status red"
+    ], start=17)}
+
+    curses.init_pair(COLOR_PAIRS["scrollbar"], curses.COLOR_WHITE, 8)
+    curses.init_pair(COLOR_PAIRS["status green"], curses.COLOR_GREEN, curses.COLOR_BLACK)  # done text
+    curses.init_pair(COLOR_PAIRS["status red"], curses.COLOR_RED, curses.COLOR_BLACK) # error text
+
 def show_title(stdscr, title=None):
     if not title:
         title = main.title
@@ -146,12 +165,12 @@ def draw_pad_scrollbar(stdscr, pad_y, pad_height, pad_height_visible, pad_top, p
     if pad_y > 0:
         stdscr.addstr(pad_top, pad_width, "↑", curses.A_REVERSE | curses.A_DIM)  # up indicator
     else:
-        stdscr.addstr(pad_top, pad_width, " ")  # clear if no scroll above
+        stdscr.addstr(pad_top, pad_width, "│", curses.A_REVERSE | curses.A_DIM)  # clear if no scroll above
 
     if pad_y + pad_height_visible < pad_height:
         stdscr.addstr(pad_bottom, pad_width, "↓", curses.A_REVERSE | curses.A_DIM)  # down indicator
     else:
-        stdscr.addstr(pad_bottom, pad_width, " ")  # clear if no scroll below
+        stdscr.addstr(pad_bottom, pad_width, "│", curses.A_REVERSE | curses.A_DIM)  # clear if no scroll below
 
     # Scroll bar track and block
     scroll_top = pad_top
@@ -159,15 +178,11 @@ def draw_pad_scrollbar(stdscr, pad_y, pad_height, pad_height_visible, pad_top, p
     scroll_bar_height = scroll_bottom - scroll_top + 1
     scroll_fraction = pad_y / max(1, pad_height - pad_height_visible)
     block_row = scroll_top + int(scroll_fraction * (scroll_bar_height - 1))
+    block_row = min(max(block_row, pad_top), pad_bottom)
 
     # draw track
     for i in range(scroll_top + 1, scroll_bottom):
         stdscr.addstr(i, pad_width, "│", curses.A_REVERSE | curses.A_DIM)
     
-    #set color for block
-    curses.start_color()
-    curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_WHITE, 8)
-
     # draw block
-    stdscr.addstr(block_row, pad_width, "░", curses.color_pair(1))
+    stdscr.addstr(block_row, pad_width, "░", curses.color_pair(COLOR_PAIRS["scrollbar"]))

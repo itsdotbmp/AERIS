@@ -1,10 +1,11 @@
 import curses
 import main
+from main import log_info, log_error
 import os
 import views.ui_parts as ui
-from views.update_views import check_updates_screen, show_download_status, show_delete_screen
+from views.update_views import check_updates_screen, download_status_screen, show_delete_screen
 
-def update_controller(stdscr, aircraft_id):
+def check_for_updates(stdscr, aircraft_id):
     """
     Handles the update check flow
     Fetches remote updates and passes results to the view for processing
@@ -18,7 +19,7 @@ def update_controller(stdscr, aircraft_id):
             f"Details: {e}",
             f"Check config path: {getattr(main, 'config_path', 'unknown')}"
         ], msg_type="error")
-        return
+        return None
     
     except ConnectionError as e:
         ui.show_popup(stdscr, [
@@ -26,7 +27,7 @@ def update_controller(stdscr, aircraft_id):
             f"Details: {e}",
             f"Server URL: {main.config.get('server_url', 'unknown')}"
         ], msg_type="error")
-        return
+        return None
     
     except Exception as e:
         ui.show_popup(stdscr, [
@@ -34,7 +35,7 @@ def update_controller(stdscr, aircraft_id):
             f"Exception: {e}",
             f"Log file: {main.config['logging'].get('log_file_name', 'unknown')}"
         ], msg_type="error")
-        return
+        return None
     
     # handle explicit error state
     if status == "error":
@@ -43,7 +44,7 @@ def update_controller(stdscr, aircraft_id):
             f"Log file: {main.config['logging'].get('log_file_name', 'unknown')}",
             f"Details: {data}"
         ], msg_type="error")
-        return
+        return None
     
     #Data should contain (download_files, delete_folders)
     if not isinstance(data, tuple) or len(data) != 2:
@@ -51,41 +52,48 @@ def update_controller(stdscr, aircraft_id):
             "Invalid response format from update check.",
             f"Recieved: {data}"
         ], msg_type="error")
-        return
+        log_error(f"Invalid response format from update check. Recieved: {data}")
+        return None
     
     download_files, delete_folders = data
+
+    return {
+        "download_files": download_files,
+        "delete_folders": delete_folders
+    }
+
+
+def _update_flow(stdscr, aircraft_id):
+    """
+    Controller for orchestrating the update flow synchronously.
+    Handles user choice, directs to download view, and returns control to main screen.
+    """
     aircraft_data = main.get_aircraft_info(aircraft_id)
-    aircraft_name = aircraft_data["name"]
-    current_version = aircraft_data["local_version"]
-    remote_version = aircraft_data["remote_version"]
-    target_folder = aircraft_data["target_folder"]
-
-    #Show check updates screen and get user choice
-    selection = check_updates_screen(stdscr, download_files, delete_folders, aircraft_name, current_version, remote_version, target_folder)
-
-    if selection == "Apply update":
-        _handle_update_flow(stdscr, aircraft_id, download_files, delete_folders)
-    elif selection == "Cancel update":
+    update_info = check_for_updates(stdscr, aircraft_id)
+    if not update_info:
+        # either an error occured or user canceled
         return
-
-def _handle_update_flow(stdscr, aircraft_id, download_files, delete_folders):
-    """
-    Manages the flow after user selects "apply update"
-    """
-    #Step 1: Download
-    download_status = None
-    if download_files:
-        from views.update_views import show_download_status
-        download_status = show_download_status(stdscr, download_files, aircraft_id)
-
-    #Step 2: Delete (only if downloads completed)
-    if download_status == "downloads_complete" and delete_folders:
-        from views.update_views import show_delete_screen, show_delete_status
-        confirmed = show_delete_screen(stdscr, delete_folders, aircraft_id)
-        if confirmed:
-            show_delete_status(stdscr, delete_folders, aircraft_id)
-        else:
-            return
     
-    #Step 3: clean up
+    download_files = update_info["download_files"]
+    delete_folders = update_info["delete_folders"]
+
+    user_choice = check_updates_screen(stdscr, download_files, delete_folders, aircraft_data)
+    
+    if user_choice.lower() != "apply update":
+        log_info("User canceled update process", tag="UPDATE_FLOW")
+        return
+    
+    if download_files:
+        download_statuses = download_status_screen(stdscr, aircraft_data, download_files)
+    
+    # TODO, show results screen
+    # TODO: show_download_results(stdscr, aircraft_data, file_statuses)
+
+    # Step 5: (Future) handle deletions if needed
+    # if delete_folders:
+    #     handle_folder_deletions(stdscr, delete_folders)
+
+    # Step Final: Clean up
     main.clean_up_operation(False, False, False)
+    log_info("Update flow complete, returning to main screen", tag="UPDATE_FLOW")
+    return
