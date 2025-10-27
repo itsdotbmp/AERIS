@@ -1,5 +1,6 @@
 import curses
 import main
+from controllers.exceptions import QuitFlow
 
 """
 Generic parts and pieces of UI that can be reused
@@ -188,3 +189,113 @@ def draw_pad_scrollbar(stdscr, pad_y, pad_height, pad_height_visible, pad_top, p
     
     # draw block
     stdscr.addstr(block_row, pad_width, "░", curses.color_pair(COLOR_PAIRS["scrollbar"]))
+
+
+def truncate_path(path, max_len):
+    """Truncate a file path from the start if it exceeds max_len."""
+    if len(path) <= max_len:
+        return path
+
+    sep = "\\"
+    parts = path.split(sep)
+    # Build result from the end backwards
+    truncated = parts[-1]  # start with filename
+    for part in reversed(parts[:-1]):
+        candidate = part + sep + truncated
+        if len(candidate) + 3 > max_len:
+            break
+        truncated = candidate
+
+    return "..." + truncated
+
+### BUTTON CONSTANTS ###
+
+# Standard labels
+CONTINUE_PROMPT = "[Press SPACE to continue]"
+ACCEPT_PROMPT = "[A]ccept"
+CANCEL_PROMPT = "[C]ancel"
+QUIT_PROMPT = "[Q]uit"
+DELETE_PROMPT = "[D]elete"
+
+# Standard spacing between buttons
+BUTTON_SPACING = 8
+
+def centered_buttons_x(screen_width, *labels, spacing=BUTTON_SPACING):
+    """
+    Returns a list of x positions for each button label to be rendered centered
+    as a group, with the given spacing between them.
+    
+    Usage:
+    labels = [ui.ACCEPT_PROMPT, ui.CANCEL_PROMPT]
+    positions = ui.centered_buttons_x(max_x, *labels)
+    for label, pos_x in zip(labels, positions):
+        ui.draw_pseudo_button(stdscr, max_y - 3, pos_x, label)
+    """
+    total_width = sum(len(label) for label in labels) + spacing * (len(labels) - 1)
+    start_x = (screen_width - total_width) // 2
+
+    positions = []
+    x = start_x
+    for label in labels:
+        positions.append(x)
+        x += len(label) + spacing
+    return positions
+
+def is_continue(key):
+    """
+    Usage:
+    key = stdscr.getch()
+    if ui.is_continue(key):
+        return 
+    """
+    return key in (ord(" "), ord("\n"), curses.KEY_ENTER)
+
+def is_quit(key):
+    """
+    Usage:
+    key = stdscr.getch()
+    if ui.is_quit(key):
+        return
+    """
+    if key in (ord("q"),ord("Q"), 27):
+        raise QuitFlow()
+    return key
+
+def is_accept(key):
+    """
+    Usage:
+    key = stdscr.getch()
+    if ui.is_accept(key):
+        return True
+    """
+    return key in (ord("a"),ord("A"))
+
+def is_cancel(key):
+    """
+    Usage:
+    key = stdscr.getch()
+    if ui.is_cancel(key):
+        return False
+    """
+    return key in (ord("c"),ord("C"))
+
+def is_delete(key):
+    """
+    Usage:
+    key = stdscr.getch()
+    if ui.is_delete(key):
+        return 'delete'
+    """
+    return key in (ord("d"),ord("D"))
+
+def handle_scroll(key, pos, max_pos):
+    """
+    Usage:
+    key = stdscr.getch()
+    pad_pos = ui.handle_scroll(key, pad_pos, pad_height - pad_height_visible)
+    """
+    if key in (curses.KEY_DOWN, ord("j"), ord("J")) and pos < max_pos:
+        pos = min(pos + 1, max_pos)
+    elif key in (curses.KEY_UP, ord("k"), ord("K")) and pos > 0:
+        pos = max(pos - 1, 0)
+    return pos

@@ -3,7 +3,8 @@ import main
 from main import log_info, log_error
 import os
 import views.ui_parts as ui
-from views.update_views import check_updates_screen, download_status_screen, downloads_summary_screen, show_delete_screen
+from views.update_views import check_updates_screen, download_status_screen, downloads_summary_screen, confirm_deletion_screen, delete_status_screen, delete_summary_screen
+from controllers.exceptions import QuitFlow
 
 def check_for_updates(stdscr, aircraft_id):
     """
@@ -76,32 +77,27 @@ def _update_flow(stdscr, aircraft_id):
     
     download_files = update_info["download_files"]
     delete_folders = update_info["delete_folders"]
-
-    user_choice = check_updates_screen(stdscr, download_files, delete_folders, aircraft_data)
-    
-    if user_choice.lower() != "apply update":
-        log_info("User canceled update process")
+    try:    
+        user_choice = check_updates_screen(stdscr, download_files, delete_folders, aircraft_data)
+        
+        if user_choice != True:
+            log_info("User canceled update process")
+            return
+        
+        if download_files:
+            download_statuses = download_status_screen(stdscr, aircraft_data, download_files)
+            if download_statuses:
+                downloads_summary_screen(stdscr, aircraft_data, download_statuses)
+        
+        if delete_folders:
+            delete_confirmation = confirm_deletion_screen(stdscr, delete_folders, aircraft_data)
+            if delete_confirmation == "delete":
+                folder_statuses = delete_status_screen(stdscr, delete_folders, aircraft_data)
+                if folder_statuses:
+                    delete_summary_screen(stdscr, folder_statuses, aircraft_data)
+        main.clean_up_operation(True, True, False)
+        log_info("Update flow complete, returning to main screen", tag="UPDATE_FLOW")
+    except QuitFlow:
+        log_info("User quit the update flow")
         return
-    
-    if download_files:
-        download_statuses = download_status_screen(stdscr, aircraft_data, download_files)
-        # return file_statuses[key] = {
-        # "text": text, 
-        # "done": done, 
-        # "error": error, 
-        # "action": action
-        # }
-    if download_files and download_statuses:
-        downloads_summary_screen(stdscr, aircraft_data, download_statuses)
-    
-    # TODO, show results screen
-    
-    
-    # Step 5: (Future) handle deletions if needed
-    # if delete_folders:
-    #     handle_folder_deletions(stdscr, delete_folders)
-
-    # Step Final: Clean up
-    main.clean_up_operation(False, False, False)
-    log_info("Update flow complete, returning to main screen", tag="UPDATE_FLOW")
     return
