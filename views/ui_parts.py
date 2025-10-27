@@ -259,7 +259,7 @@ def is_quit(key):
     """
     if key in (ord("q"),ord("Q"), 27):
         raise QuitFlow()
-    return key
+
 
 def is_accept(key):
     """
@@ -295,7 +295,7 @@ def handle_scroll(key, pos, max_pos):
     pad_pos = ui.handle_scroll(key, pad_pos, pad_height - pad_height_visible)
     """
     if key in (curses.KEY_DOWN, ord("j"), ord("J")) and pos < max_pos:
-        pos = min(pos + 1, max_pos)
+        return min(pos + 1, max_pos)
     elif key in (curses.KEY_UP, ord("k"), ord("K")) and pos > 0:
-        pos = max(pos - 1, 0)
+        return max(pos - 1, 0)
     return pos

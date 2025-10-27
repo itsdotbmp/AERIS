@@ -524,7 +524,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                     log_error(f"Error extracting '{file}': {e}")
                     if update_callback:
                         # Mark as only partial finished
-                        update_callback(f"ERROR: '{file}' - Extract failed - {e}", file=file, action="extract", done=False, error=False)         
+                        update_callback(f"'{file}' - Extract failed - {e}", file=file, action="extract", done=False, error=False)         
                     # Doon't remove destination_file; proceed to next file
                     continue
             else:

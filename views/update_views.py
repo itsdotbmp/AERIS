@@ -57,7 +57,7 @@ def check_updates_screen(stdscr, download_files, delete_folders, aircraft_data):
     for i, line in enumerate(pad_lines):
         pad.addstr(i, 0, line)
     
-    pad_y = 0
+    pad_pos = 0
 
     labels = [ui.ACCEPT_PROMPT, ui.CANCEL_PROMPT]
     positions = ui.centered_buttons_x(max_x, *labels)
@@ -66,11 +66,11 @@ def check_updates_screen(stdscr, download_files, delete_folders, aircraft_data):
     
     while True:
         #display pad portion
-        pad.refresh(pad_y, 0, pad_top, 2, pad_bottom, max_x - 2)
+        pad.refresh(pad_pos, 0, pad_top, 2, pad_bottom, max_x - 2)
 
         ui.draw_pad_scrollbar(
             stdscr,
-            pad_y,
+            pad_pos,
             pad_height,
             pad_height_visible,
             pad_top,
@@ -93,7 +93,7 @@ def check_updates_screen(stdscr, download_files, delete_folders, aircraft_data):
 
         key = stdscr.getch()
         # handle scrolling
-        pad_y = ui.handle_scroll(key, pad_y, pad_height - pad_height_visible)
+        pad_pos = ui.handle_scroll(key, pad_pos, pad_height - pad_height_visible)
         # continue
         if ui.is_accept(key):
             return True
