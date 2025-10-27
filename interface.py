@@ -1,9 +1,5 @@
 import curses
 import main
-import traceback
-import views.ui_parts as ui
-from controllers.update_controller import _update_flow
-from controllers.exceptions import QuitFlow
 
 """
 Copyright (c) 2025 YourHandle
@@ -16,16 +12,6 @@ title = "86th vFW Livery Tool"
 def main_curses(stdscr):
     curses.curs_set(0)  
     # Start screen
-    try:
-        ui.init_ui()
-        main.load_config()
-
-    except Exception as e:
-        stdscr.addstr(2, 2, f"Failed to load config: {e}")
-        stdscr.addstr(4, 2, "Press any key to exit.")
-        stdscr.refresh()
-        stdscr.getch()
-        return
 
     config_ok = main.load_config()
     if not config_ok:
@@ -45,10 +31,7 @@ def main_curses(stdscr):
             if selected_id:
                 main.set_current_aircraft(selected_id)
         elif choice == "Check for Updates":
-            try:
-                _update_flow(stdscr, main.current_aircraft_id)
-            except QuitFlow:
-                return
+            check_updates_screen(stdscr, title, main.current_aircraft_id)
         elif choice == "Config":
             main_config_screen(stdscr)
 
