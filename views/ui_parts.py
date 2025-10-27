@@ -17,12 +17,14 @@ def init_ui():
     COLOR_PAIRS = { name: i for i, name in enumerate([
         "scrollbar",
         "status green",
-        "status red"
+        "status red",
+        "status yellow"
     ], start=17)}
 
     curses.init_pair(COLOR_PAIRS["scrollbar"], curses.COLOR_WHITE, 8)
     curses.init_pair(COLOR_PAIRS["status green"], curses.COLOR_GREEN, curses.COLOR_BLACK)  # done text
     curses.init_pair(COLOR_PAIRS["status red"], curses.COLOR_RED, curses.COLOR_BLACK) # error text
+    curses.init_pair(COLOR_PAIRS["status yellow"], curses.COLOR_YELLOW, curses.COLOR_BLACK) # yellow warning text
 
 def show_title(stdscr, title=None):
     if not title:
@@ -138,7 +140,7 @@ def draw_disclaimer(stdscr):
 
 def draw_pseudo_button(stdscr, btn_y, btn_x, btn_text):
     # Draw psuedo button
-    stdscr.addstr(btn_y, btn_x, btn_text, curses.A_REVERSE)
+    stdscr.addstr(btn_y, btn_x, btn_text, curses.A_BOLD | curses.A_REVERSE)
 
 def draw_scroll_hint(stdscr, pos_y, max_x):
     # Draw Scroll hint

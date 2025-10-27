@@ -13,12 +13,17 @@
     "environment": {
         "liveries_folder": "G:/Saved Games/DCS.openbeta/Liveries"
     },
-    "default_aircraft_id": "f-4e-45mc",
+    "default_aircraft_id": "test_load",
     "aircrafts": {
         "f-4e-45mc": { 
             "name": "F-4E Phantom II",
             "folder": "f-4e-45mc/test",
             "remote_subfolder": null
+        },
+        "test_load": {
+            "name": "Testing Livery with Smaller file size",
+            "folder": "f-4e-45mc/test/test_load_folder",
+            "remote_subfolder": "test_load"
         },
         "f-16c": {
             "name": "F-16C Fighting Falcon",

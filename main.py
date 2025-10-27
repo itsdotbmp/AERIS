@@ -168,9 +168,9 @@ def log_info(msg, tag=None, include_args=False):
     else:
         context = f"{func_name}()"    
     if tag:
-        logging.info(f"INFO {tag}  |  {context}  |  {msg}")
+        logging.info(f"INFO {tag} | {context} | {msg}")
     else:
-        logging.info(f"INFO  |  {context}  |  {msg}")
+        logging.info(f"INFO | {context} | {msg}")
 
 def log_error(msg, include_args=False):
     frame = inspect.stack()[1]
@@ -180,9 +180,25 @@ def log_error(msg, include_args=False):
         #Get arg names and values for caller
         args, _, _, values = inspect.getargvalues(frame.frame)
         arg_str = ", ".join(f"{a}={values[a]!r}" for a in args)
-        logging.error(f"ERROR  |  {func_name}({arg_str})  |  {msg}")
+        logging.error(f"ERROR | {func_name}({arg_str}) | {msg}")
     else:
-        logging.error(f"ERROR  |  {func_name}()  |  {msg}")
+        logging.error(f"ERROR | {func_name}() | {msg}")
+
+def log_warn(msg, tag=None, include_args=False):
+    frame = inspect.stack()[1]
+    func_name = frame.function
+
+    if include_args:
+        #Get arg names and values for caller
+        args, _, _, values = inspect.getargvalues(frame.frame)
+        arg_str = ", ".join(f"{a}={values[a]!r}" for a in args)
+        context = f"{func_name}({arg_str})"
+    else:
+        context = f"{func_name}()"    
+    if tag:
+        logging.info(f"WARNING {tag} | {context} | {msg}")
+    else:
+        logging.info(f"WARNING | {context} | {msg}")
 
     
 # Helper to always get the correct aircraft_id, 
@@ -332,7 +348,7 @@ def get_remote_updates(aircraft_id):
         return "error", "remote_fetch_failed, server_newest is None"
 
     if not is_newer(local_newest, server_newest):
-        log_info(f"UP_TO_DATE  |  local version {local_newest} matches {server_newest}. Up to Date!", include_args=True)
+        log_info(f"UP_TO_DATE | local version {local_newest} matches {server_newest}. Up to Date!", include_args=True)
         return "up_to_date", ([],[])
 
     # New Update is available
@@ -378,7 +394,7 @@ def clean_up_operation(update = True, delete = True, echo = True):
             print(f"Updated '{get_local_version_file(current_aircraft_id)}' with the version from the server.")
     if delete:
         try:
-            os.remove(server_version_file)
+            safe_delete(server_version_file)
             logging.info(f"clean_up_operation({update},{delete},{echo}):  ran and deleted the local copy of '{server_version_file}'")
             if echo:
                 print(f"Deleted {server_version_file} to clean up operations\n")
@@ -398,7 +414,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
         # build a correct URL using the aircraft ID for remote url
         file_url = get_remote_livery_url(aircraft_id) + file
         destination_file = os.path.normpath(os.path.join(destination_folder, file))
-        log_info(f"Processing Download for {file}", tag="DOWNLOADING_START", include_args=True)
+        log_info(f"Processing Download for {file}", tag="DOWNLOADING_START")
         log_info(f"File URL:  {file_url}")
         log_info(f"Destination Folder: {destination_file},")
         start_time = time.time()
@@ -415,39 +431,109 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
 
             # Unpack the file
             if zipfile.is_zipfile(destination_file):
-                with zipfile.ZipFile(destination_file, 'r') as zip_ref:
-                    zip_contents = zip_ref.namelist()
-                    # find toplevel folders
-                    top_level_folders = set()
-                    for entry_name in zip_contents:
-                        if '/' in entry_name:
-                            folder_name = entry_name.split('/')[0]
-                            top_level_folders.add(folder_name)
-                    # Check for single root folder
-                    has_single_root = (
-                        len(top_level_folders) == 1
-                        and not list(top_level_folders)[0].startswith('__MACOSX')
-                    )
-                    if has_single_root:
-                        root_folder_name = list(top_level_folders)[0]
-                        extract_path = destination_folder
-                        log_info(f"Unpacking '{file}' (root folder '{root_folder_name}') into '{extract_path}'", tag="EXTRACTING_START")
-                    else:
-                        #create a folder based on zip filename
-                        safe_folder_name = os.path.splitext(file)[0]
-                        extract_path = os.path.normpath(os.path.join(destination_folder, safe_folder_name))
-                        os.makedirs(extract_path, exist_ok=True)
+                try:
+                    with zipfile.ZipFile(destination_file, 'r') as zip_ref:
+                        zip_contents = zip_ref.namelist()
+
+                        # Top-level analysis for zip structure
+                        # root_files: entries are in the zip root no folders
+                        root_files = {
+                            e for e in zip_contents
+                            if '/' not in e and not e.endswith('/')
+                        }
+                        # top_level_folders: first path segment for entries containing '/'
+                        top_level_folders = {
+                            entry.split('/')[0] for entry in zip_contents if '/' in entry
+                        }
+                        # Decide upack strategy:
+                        # 1. Multi-livery pack: Strictly multiple top level folders and no files at root
+                        # 2. Single root folder: exactly one top-level folder and no top-level files
+                        # 3. Otherwise: create a safe folder named after the zip file
+                        is_multi_livery = (
+                            len(top_level_folders) > 1
+                            and len(root_files) == 0
+                            and "description.lua" not in {rf.lower() for rf in root_files}
+                        ) # If root files was not zero, then it could just be a common shared folder without a livery.
                         
-                        log_info(f"Unpacking '{file}' into safe folder '{extract_path}'", tag="EXTRACTING_START")
-                    if update_callback:
-                            update_callback(f"Extracting: {file}", file=file, action="extract", done=False)
-                    zip_ref.extractall(extract_path)
-                    if update_callback:
-                            update_callback(f" Extracting: {file} - Success", file=file, action="extract", done=True)
+                        is_single_root = (
+                            len(top_level_folders) == 1
+                            and len(root_files) == 0
+                            and not list(top_level_folders)[0].startswith('__MACOSX')
+                        )
+
+                        
+                        if is_single_root:
+                            root_folder_name = list(top_level_folders)[0]
+                            extract_path = destination_folder
+                            log_info(f"Unpacking '{file}' (root folder '{root_folder_name}') into '{extract_path}'", tag="EXTRACTING_START")
+                            
+                            if update_callback:
+                                update_callback(f"Extracting: {file}", file=file, action="extract", done=False)
+                            
+                            safe_unzip(zip_ref, extract_path)
+
+                            if update_callback:
+                                update_callback(f"Extracting: {file} - Success", file=file, action="extract", done=True)
+                        elif is_multi_livery:
+                            # multiple seperate livery folders at top level, and no files at root:
+                            # extract these folders directly into destination folder with no extra enclosing folder
+                            log_warn(
+                                f"Multiple top-level folders detected in '{file}': {top_level_folders}. "
+                                f"Extracting each top-level folder directly into destination.",
+                                tag="EXTRACTING_MULTI"
+                            )
+
+                            if update_callback:
+                                update_callback(f"Extracting: {file}", file=file, action="extract", done=False)
+
+                            # Extract only members that start with each top-level folder
+                            for folder in sorted(top_level_folders):
+                                members = [name for name in zip_contents if name.startswith(folder + '/')]
+                                for member in members:
+                                    # extract each member path into destination_folder (prevserves subpath)
+                                    safe_unzip(zip_ref, member, destination_folder)
+                            if update_callback:
+                                update_callback(f"Extracting: {file} - Success", file=file, action="extract", done=True)
+
+                        else:
+                            #fallback, mixed content or files at root, create a wrapping folder
+                            safe_folder_name = os.path.splitext(file)[0]
+                            extract_path = os.path.normpath(os.path.join(destination_folder, safe_folder_name))
+                            os.makedirs(extract_path, exist_ok=True)
+                            
+                            log_info(f"Unpacking '{file}' into safe folder '{extract_path}'", tag="EXTRACTING_START")
+                            if update_callback:
+                                update_callback(f"Extracting: {file}", file=file, action="extract", done=False)
+                            safe_unzip(zip_ref, extract_path)
+                            if update_callback:
+                                update_callback(f"Extracting: {file} - Success", file=file, action="extract", done=True)
+                        
                     elapsed = time.time() - start_time
                     log_info(f"Unpack Complete for '{file}' in {elapsed:.2f} seconds", tag="EXTRACTING_END")
-            os.remove(destination_file)
-            log_info(f"Removed ZIP file '{file}' after extraction", tag="DELETING_FILE")
+                    
+                    # Only remove zip if successfully extracted
+                    try:
+                        safe_delete(destination_file)
+                        log_info(f"Removed ZIP file '{file}' after extraction", tag="DELETING_FILE")
+                    except Exception as e_rm:
+                        # delete errors shouldn't crash the program
+                        log_error(f"Failed to remove zip '{destination_file}': {e_rm}")
+
+                except (zipfile.BadZipFile, OSError, PermissionError) as e:
+                    # Extraction failed: Keep the zip and log, debugging, mark partial finished
+                    log_error(f"Error extracting '{file}': {e}")
+                    if update_callback:
+                        # Mark as only partial finished
+                        update_callback(f"ERROR: {file} - Extract failed - {e}", file=file, action="extract", done=False, error=False)         
+                    # Doon't remove destination_file; proceed to next file
+                    continue
+            else:
+                # not a zip file, nothing to extract.
+                log_warn(f"Downloaded file '{file}' is not a zip archive; left in place", tag="NON_ZIP")
+                if update_callback:
+                    update_callback(F"Extracting: {file} is not a zip archive, left in place", file=file, action="extract", done=False)
+                # If we want to remove non zip files uncomment next:
+                # safe_delete(destination_file)
 
         except HTTPError as e:
             log_error(f"HTTP error {e.code} {e.reason} while downloading '{file}'")
@@ -538,12 +624,65 @@ def set_current_aircraft(new_id):
     current_aircraft_id = new_id
 
 def startup(show_warning=False):
-    logging.info(f"PROGRAM_START  |  version={software_version}")
+    logging.info(f"PROGRAM_START | version={software_version}")
     if show_warning:
         print("Please run the program using interface.py, not main.py")
 
 def shutdown():
-    logging.info(f"PROGRAM_END  |  version={software_version}")
+    logging.info(f"PROGRAM_END | version={software_version}")
+
+def safe_unzip(zip_ref, *args):
+    """
+    Unified unzip handler for both extractall() and extract(member, dest) use cases.
+    Usage:
+      safe_unzip(extract_path, all=True)  -> calls extractall
+      safe_unzip(member, destination_folder) -> calls extract
+    - Calls safe_delete(source) only if the source is a valid zip.
+    """
+    if zip_ref is None:
+        raise ValueError("safe_unzip() requires a ZipFile object as the first argument")
+    if len(args) == 1:
+        zip_ref.extractall(args[0])
+    elif len(args) == 2:
+        member, dest = args
+        zip_ref.extract(member, dest)
+    else:
+        raise ValueError(f"safe_unzip() expects 2 or 3 positional arguments including zip_ref, got {1 + len(args)} (zip_ref + {len(args)} additional)")
+
+
+def safe_delete(path: str, force_delete: bool = False):
+    """
+    Unified delete function.
+    - If 'path' is a file, deletes it.
+    - If 'path' is a folder:
+        • If force_delete=True, deletes entire folder tree (like shutil.rmtree).
+        • If force_delete=False, deletes only if empty.
+    Raises same exceptions as os.remove/shutil.rmtree.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Path does not exist: {path}")
+    
+    try:
+        if os.path.isfile(path) or os.path.islink(path):
+            os.remove(path)
+
+        elif os.path.isdir(path):
+            if force_delete:
+                shutil.rmtree(path)
+            else:
+                #only delete empty folders
+                if not os.listdir(path):
+                    os.rmdir(path)
+                else:
+                    # folder not empty; ignore deletion (intentional no operation)
+                    pass
+        else:
+            raise OSError(f"Unsupported file type: {path}")
+    except Exception as e:
+        # maintain normal exception behaviour
+        raise e
+            
+    
 
 ### ATOMIZED UNZIP AND TRACKING OF FILES // PSEUDO CODE
 # def install_package(zip_path, dest_folder, manifest, package_id):
@@ -559,7 +698,7 @@ atexit.register(shutdown)
 
 if __name__ == "__main__":
     startup(show_warning=True)
-    log_error(f"Program launched from main.py, please run the program from interface.py")
+    logging.critical(f"CRITICAL | Program launched from main.py, please run the program from interface.py")
 
 ## TO DO :
 ## ADD basic config editing ability, setting users saved games folder/liveries folder

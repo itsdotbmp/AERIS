@@ -5,7 +5,7 @@ import views.ui_parts as ui
 from controllers.update_controller import _update_flow
 
 # You can change this to any valid aircraft identifier
-TEST_AIRCRAFT_ID = "f-4e-45mc"
+TEST_AIRCRAFT_ID = "test_load"
 
 def main_screen(stdscr):
     curses.curs_set(0)
@@ -19,9 +19,6 @@ def main_screen(stdscr):
         stdscr.refresh()
         stdscr.getch()
         return
-
-    stdscr.addstr(0, 0, "test", curses.color_pair(ui.COLOR_PAIRS["status green"]))
-    stdscr.getch()
 
     try:
         _update_flow(stdscr, TEST_AIRCRAFT_ID)
