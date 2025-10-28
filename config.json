@@ -34,6 +34,56 @@
             "name": "86th vFW F-4E",
             "folder": "f-4e-45mc/test/86f4e",
             "remote_subfolder": "https://86thvfw.com/dcsrepo/liveries/"
+        },
+        "mirage_2000": {
+            "name": "Mirage 2000C",
+            "folder": "mirage-2000/test",
+            "remote_subfolder": "mirage2000"
+        },
+        "su-27": {
+            "name": "Su-27 Flanker",
+            "folder": "su-27/test",
+            "remote_subfolder": "su27"
+        },
+        "mig-29": {
+            "name": "MiG-29 Fulcrum",
+            "folder": "mig-29/test",
+            "remote_subfolder": "mig29"
+        },
+        "f-15c": {
+            "name": "F-15C Eagle",
+            "folder": "f-15c/test",
+            "remote_subfolder": "f15c"
+        },
+        "a-10c": {
+            "name": "A-10C Warthog",
+            "folder": "a-10c/test",
+            "remote_subfolder": "a10c"
+        },
+        "f-14b": {
+            "name": "F-14B Tomcat",
+            "folder": "f-14b/test",
+            "remote_subfolder": "f14b"
+        },
+        "f-35a": {
+            "name": "F-35A Lightning II",
+            "folder": "f-35a/test",
+            "remote_subfolder": "f35a"
+        },
+        "harrier_gr7": {
+            "name": "Harrier GR.7",
+            "folder": "harrier-gr7/test",
+            "remote_subfolder": "harrier"
+        },
+        "mig-21": {
+            "name": "MiG-21 Fishbed",
+            "folder": "mig-21/test",
+            "remote_subfolder": "mig21"
+        },
+        "saab_ja37": {
+            "name": "Saab JA 37 Viggen",
+            "folder": "saab-ja37/test",
+            "remote_subfolder": "ja37"
         }
     }
 }

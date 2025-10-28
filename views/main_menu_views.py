@@ -18,8 +18,7 @@ def _splash_screen(stdscr):
     ui.draw_disclaimer(stdscr)
 
     stdscr.refresh()
-    time.sleep(2)
-    main_menu(stdscr)
+    time.sleep(.25)
 
 def main_menu(stdscr):
     curses.curs_set(0)
@@ -28,12 +27,11 @@ def main_menu(stdscr):
     ui.draw_disclaimer(stdscr)
 
     current_index = 0
-    selections = ["Option 1", "Option 2", "Choose Preset", "Select Preset", "Quit"]
+    selections = ["Option 1", "Option 2", "Choose Preset", "Start Update", "Quit"]
     while True:
         ui.new_menu_vertical(stdscr, 4, 2, selections, current_index)
         stdscr.refresh()
 
-        stdscr.refresh()
         key = stdscr.getch()
         # Key inputs
         try:

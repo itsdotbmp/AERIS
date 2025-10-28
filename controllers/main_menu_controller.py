@@ -9,7 +9,7 @@ from controllers.exceptions import QuitFlow
 import logging
 import sys
 
-from controllers.update_controller import _update_flow
+
 # from controllers.select_preset import _choose_preset
 
 def _startup(stdscr):
@@ -22,13 +22,35 @@ def _startup(stdscr):
     _splash_screen(stdscr)
     _main_menu_flow(stdscr)
 
+def quit_program(stdscr=None, message="Exiting program..."):
+    """
+    Cleanly exit the program with optional curses and console cleanup.
+    """
+    try:
+        if stdscr:
+            curses.nocbreak()
+            stdscr.keypad(False)
+            curses.echo()
+            curses.endwin()
+    except Exception:
+        pass  # Safe to ignore if curses isn't active
+
+    # Clear the console screen
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+    print(message)
+    sys.exit(0)
 
 def _main_menu_flow(stdscr):
     while True:
         choice = main_menu(stdscr)
-        if choice.lower() == "update":
+        if choice is QUIT:
+            quit_program(stdscr)
+        if choice.lower() == "start update":
+            from controllers.update_controller import _update_flow
             _update_flow(stdscr, main.current_aircraft_id)
-        #elif choice.lower() == "choose preset":
-           # _choose_preset(stdscr)
+        elif choice.lower() == "choose preset":
+            from controllers.preset_selection_controller import _preset_selection_flow
+            _preset_selection_flow(stdscr)
         elif choice == QUIT or choice.lower() == "quit":
-            sys.exit()
+            quit_program(stdscr)

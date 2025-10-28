@@ -214,7 +214,10 @@ def draw_pad_scrollbar(stdscr, pad_y, pad_height, pad_height_visible, pad_top, p
     scroll_top = pad_top
     scroll_bottom = pad_bottom
     scroll_bar_height = scroll_bottom - scroll_top + 1
+    # fraction of the scroll position relative to the total scrollable height
     scroll_fraction = pad_y / max(1, pad_height - pad_height_visible)
+
+    #calculate which row the scrollblock should occupy
     block_row = scroll_top + int(scroll_fraction * (scroll_bar_height - 1))
     block_row = min(max(block_row, pad_top), pad_bottom)
 
