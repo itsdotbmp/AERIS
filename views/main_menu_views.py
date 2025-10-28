@@ -27,7 +27,7 @@ def main_menu(stdscr):
     ui.draw_disclaimer(stdscr)
 
     current_index = 0
-    selections = ["Option 1", "Option 2", "Choose Preset", "Start Update", "Quit"]
+    selections = ["Choose Preset", "Start Update", "Quit"]
     while True:
         ui.new_menu_vertical(stdscr, 4, 2, selections, current_index)
         stdscr.refresh()

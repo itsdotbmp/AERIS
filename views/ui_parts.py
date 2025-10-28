@@ -20,14 +20,17 @@ def init_ui():
         "status green",
         "status red",
         "status yellow",
-        "bluescreen"
+        "bluescreen",
+        "dark blue"
     ], start=17)}
+    dark_blue = 20
 
     curses.init_pair(COLOR_PAIRS["scrollbar"], curses.COLOR_WHITE, 8)
-    curses.init_pair(COLOR_PAIRS["status green"], curses.COLOR_GREEN, curses.COLOR_BLACK)  # done text
-    curses.init_pair(COLOR_PAIRS["status red"], curses.COLOR_RED, curses.COLOR_BLACK) # error text
-    curses.init_pair(COLOR_PAIRS["status yellow"], curses.COLOR_YELLOW, curses.COLOR_BLACK) # yellow warning text
-    curses.init_pair(COLOR_PAIRS["bluescreen"], curses.COLOR_WHITE, curses.COLOR_BLUE) # white on blue
+    curses.init_pair(COLOR_PAIRS["status green"], curses.COLOR_GREEN, dark_blue)  # done text
+    curses.init_pair(COLOR_PAIRS["status red"], curses.COLOR_RED, dark_blue) # error text
+    curses.init_pair(COLOR_PAIRS["status yellow"], curses.COLOR_YELLOW, dark_blue) # yellow warning text
+    curses.init_pair(COLOR_PAIRS["bluescreen"], curses.COLOR_WHITE, dark_blue) # white on blue
+    curses.init_pair(COLOR_PAIRS["dark blue"], curses.COLOR_WHITE, dark_blue) # White on darker blue
 
 def show_title(stdscr, title=None):
     if not title:
@@ -196,19 +199,20 @@ def draw_pad_scrollbar(stdscr, pad_y, pad_height, pad_height_visible, pad_top, p
     pad_bottom          : bottom y position of pad on screen
     pad_width           : x position to draw the scrollbar (usually right edge of pad)
     """
+    attr_track = curses.A_REVERSE | curses.A_DIM
     if pad_height <= pad_height_visible:
-        return
+        attr_track = curses.A_DIM | curses.A_REVERSE
     
     # Draw scroll indicators
     if pad_y > 0:
-        stdscr.addstr(pad_top, pad_width, "↑", curses.A_REVERSE | curses.A_DIM)  # up indicator
+        stdscr.addstr(pad_top, pad_width, "↑", attr_track)  # up indicator
     else:
-        stdscr.addstr(pad_top, pad_width, "│", curses.A_REVERSE | curses.A_DIM)  # clear if no scroll above
+        stdscr.addstr(pad_top, pad_width, "╥", attr_track)  # clear if no scroll above
 
     if pad_y + pad_height_visible < pad_height:
-        stdscr.addstr(pad_bottom, pad_width, "↓", curses.A_REVERSE | curses.A_DIM)  # down indicator
+        stdscr.addstr(pad_bottom, pad_width, "↓", attr_track)  # down indicator
     else:
-        stdscr.addstr(pad_bottom, pad_width, "│", curses.A_REVERSE | curses.A_DIM)  # clear if no scroll below
+        stdscr.addstr(pad_bottom, pad_width, "╨", attr_track)  # clear if no scroll below
 
     # Scroll bar track and block
     scroll_top = pad_top
@@ -223,10 +227,14 @@ def draw_pad_scrollbar(stdscr, pad_y, pad_height, pad_height_visible, pad_top, p
 
     # draw track
     for i in range(scroll_top + 1, scroll_bottom):
-        stdscr.addstr(i, pad_width, "│", curses.A_REVERSE | curses.A_DIM)
+        if pad_height > pad_height_visible:
+            stdscr.addstr(i, pad_width, "│", attr_track)
+        else:
+            stdscr.addstr(i, pad_width, "║", attr_track)
     
     # draw block
-    stdscr.addstr(block_row, pad_width, "░", curses.color_pair(COLOR_PAIRS["scrollbar"]))
+    if pad_height > pad_height_visible:
+        stdscr.addstr(block_row, pad_width, "▓", curses.color_pair(COLOR_PAIRS["scrollbar"]) | curses.A_REVERSE)
 
 
 def truncate_path(path, max_len):

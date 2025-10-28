@@ -64,6 +64,23 @@ def check_for_updates(stdscr, aircraft_id):
     }
 
 
+def if_updates(download_files, delete_folders):
+    update_available = bool(download_files or delete_folders)
+
+    info_message = """
+    No updates are available for this aircraft preset.
+    Your local installation is already up-to-date.
+    """
+    if not update_available:
+    # split into lines
+        info_lines = [line.strip() for line in info_message.strip().splitlines() if line.strip()]
+        # inject as a synthetic "file statuses" 
+        download_files = [line for line in info_lines]
+
+        return download_files, False
+    return download_files, True
+
+
 def _update_flow(stdscr, aircraft_id):
     """
     Controller for orchestrating the update flow synchronously.
@@ -77,14 +94,19 @@ def _update_flow(stdscr, aircraft_id):
     
     download_files = update_info["download_files"]
     delete_folders = update_info["delete_folders"]
-    try:    
+
+    download_files, is_updates = if_updates(download_files, delete_folders)
+
+    try:
+        # remove folders that are already missing from delete_folders
+        delete_folders = main.filter_existing_folders(delete_folders, aircraft_id)  
         user_choice = check_updates_screen(stdscr, download_files, delete_folders, aircraft_data)
         
         if user_choice != True:
             log_info("User canceled update process")
             return
         
-        if download_files:
+        if download_files and is_updates:
             download_statuses = download_status_screen(stdscr, aircraft_data, download_files)
             if download_statuses:
                 downloads_summary_screen(stdscr, aircraft_data, download_statuses)

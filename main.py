@@ -468,12 +468,12 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                             log_info(f"Unpacking '{file}' (root folder '{root_folder_name}') into '{extract_path}'", tag="EXTRACTING_START")
                             
                             if update_callback:
-                                update_callback(f"'{file}'", file=file, action="extract", done=False)
+                                update_callback(f"{file}", file=file, action="extract", done=False)
                             
                             safe_unzip(zip_ref, extract_path)
 
                             if update_callback:
-                                update_callback(f"'{file}' - Success", file=file, action="extract", done=True)
+                                update_callback(f"{file} - Success", file=file, action="extract", done=True)
                         elif is_multi_livery:
                             # multiple seperate livery folders at top level, and no files at root:
                             # extract these folders directly into destination folder with no extra enclosing folder
@@ -484,7 +484,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                             )
 
                             if update_callback:
-                                update_callback(f"'{file}'", file=file, action="extract", done=False)
+                                update_callback(f"{file}", file=file, action="extract", done=False)
 
                             # Extract only members that start with each top-level folder
                             for folder in sorted(top_level_folders):
@@ -493,7 +493,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                                     # extract each member path into destination_folder (prevserves subpath)
                                     safe_unzip(zip_ref, member, destination_folder)
                             if update_callback:
-                                update_callback(f"'{file}' - Success", file=file, action="extract", done=True)
+                                update_callback(f"{file} - Success", file=file, action="extract", done=True)
 
                         else:
                             #fallback, mixed content or files at root, create a wrapping folder
@@ -503,10 +503,10 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                             
                             log_info(f"Unpacking '{file}' into safe folder '{extract_path}'", tag="EXTRACTING_START")
                             if update_callback:
-                                update_callback(f"'{file}'", file=file, action="extract", done=False)
+                                update_callback(f"{file}", file=file, action="extract", done=False)
                             safe_unzip(zip_ref, extract_path)
                             if update_callback:
-                                update_callback(f"'{file}' - Success", file=file, action="extract", done=True)
+                                update_callback(f"{file} - Success", file=file, action="extract", done=True)
                         
                     elapsed = time.time() - start_time
                     log_info(f"Unpack Complete for '{file}' in {elapsed:.2f} seconds", tag="EXTRACTING_END")
@@ -524,33 +524,33 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                     log_error(f"Error extracting '{file}': {e}")
                     if update_callback:
                         # Mark as only partial finished
-                        update_callback(f"'{file}' - Extract failed - {e}", file=file, action="extract", done=False, error=False)         
+                        update_callback(f"{file} - Extract failed - {e}", file=file, action="extract", done=False, error=False)         
                     # Doon't remove destination_file; proceed to next file
                     continue
             else:
                 # not a zip file, nothing to extract.
                 log_warn(f"Downloaded file '{file}' is not a zip archive; left in place", tag="NON_ZIP")
                 if update_callback:
-                    update_callback(F"'{file}' is not a zip file", file=file, action="extract", done=False)
+                    update_callback(F"{file} is not a zip file", file=file, action="extract", done=False)
                 # If we want to remove non zip files uncomment next:
                 # safe_delete(destination_file)
 
         except HTTPError as e:
             log_error(f"HTTP error {e.code} {e.reason} while downloading '{file}'")
             if update_callback:
-                update_callback(f"'{file}' - {e.code} {e.reason}", file=file, action="download", error=True)
+                update_callback(f"{file} - {e.code} {e.reason}", file=file, action="download", error=True)
         except URLError as e:
             log_error(f"Network error while downloading '{file}': {e}")
             if update_callback:
-                update_callback(f"'{file}' - Network Error - {e}", file=file, action="download", error=True)
+                update_callback(f"{file} - Network Error - {e}", file=file, action="download", error=True)
         except ContentTooShortError as e:
             log_error(f"Download incomplete for '{file}': {e}")
             if update_callback:
-                update_callback(f"'{file}' - Download Incomplete - {e}", file=file, action="download", error=True)
+                update_callback(f"{file} - Download Incomplete - {e}", file=file, action="download", error=True)
         except (OSError, PermissionError) as e:
             log_error(f"Local file error for '{file}': {e}")
             if update_callback:
-                update_callback(f"'{file}' - local file issue {e}", file=file, action="download", error=True)
+                update_callback(f"{file} - local file issue {e}", file=file, action="download", error=True)
 
 def process_deletes(delete_folders, aircraft_id, update_callback=None):
     working_folder = os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"])
@@ -574,6 +574,32 @@ def process_deletes(delete_folders, aircraft_id, update_callback=None):
             log_info(f"Folder does not exist: '{target_folder}'")
             if update_callback:
                 update_callback(f"Folder does not exist: '{folder_name}'", folder=folder_name, action="MISSING", done=False)
+
+
+def filter_existing_folders(delete_folders, aircraft_id):
+    """
+    Return only folders that still exist on disk.
+    Prevents repeated delete attempts on already-removed folders.
+    """
+    if not delete_folders:
+        return []
+    
+    working_folder = os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"])
+    valid_folders = []
+
+    for folder in delete_folders:
+        folder_name = os.path.splitext(folder)[0]
+        target_folder = os.path.normpath(os.path.join(working_folder, folder_name))
+
+        if os.path.isdir(target_folder):
+            valid_folders.append(folder)
+        else:
+            log_info(f"Skipping already-missing folder: '{target_folder}'", tag="SKIP_DELETE")
+        
+        log_info(f"Folder is not found on system, removing from queue: '{folder}'", tag="FILE HANDLING")
+
+    return valid_folders
+
 
 def get_aircraft_info(aircraft_id):
     """

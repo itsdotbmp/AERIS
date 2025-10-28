@@ -15,8 +15,8 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
     ui.show_title(stdscr)
     ui.draw_disclaimer(stdscr)
 
-    current_preset_name = f"Current Selected Preset: {current_aircraft_data["name"]}"
-    current_preset_path = f"Target folder: {ui.truncate_path(current_aircraft_data["target_folder"], 50)}"
+    current_preset_name = f"Current Selected Preset: {current_aircraft_data['name']}"
+    current_preset_path = f"Target folder: {ui.truncate_path(current_aircraft_data['target_folder'], 50)}"
 
     y = 4
     stdscr.addstr(y, 2, current_preset_name, curses.A_BOLD)
@@ -38,6 +38,7 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
 
     
     pad = curses.newpad(pad_height, pad_width)
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
     
     pad_pos_y = 0
     pad_cursor_y = 0
@@ -51,15 +52,15 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
         ui.draw_pseudo_button(stdscr, _y + 5, pos_x, label)
 
     while True:
-        # pad.erase()
+        pad.erase()
         for idx, preset in enumerate(aircraft_presets_list):
-            preset_id = preset["id"]
-            preset_name = preset["name"]
-            preset_folder = preset["folder"]
-            preset_url = preset["url"]
+            preset_id = preset.get("id", "")
+            preset_name = preset.get("name", "")
+            preset_folder = preset.get("folder", "")
+            preset_url = preset.get("url", "")
             if idx == pad_cursor_y:
                 display_folder = preset_folder
-                dispaly_url = preset_url
+                display_url = preset_url
                 attr = curses.A_REVERSE
                 pre = "> "
             else:
@@ -67,7 +68,7 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
                 pre = "  "
             preset_line = f"{pre}{preset_id:<15} '{preset_name}'"
             pad.addstr(idx, 0, f"{preset_line:<{pad_width}}", attr)
-        
+            
         
 
         
@@ -79,24 +80,28 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
 
         stdscr.move(_y + 3, 2)
         stdscr.clrtoeol()
-        stdscr.addstr(_y + 3, 2, f"Download URL: {dispaly_url}")    
+        stdscr.addstr(_y + 3, 2, f"Download URL: {display_url}")    
    
-        pad.refresh(pad_pos_y, 0, pad_view_top, pad_view_left, pad_view_bottom, pad_view_right)
+        
         scroll_height = len(aircraft_presets_list) - 1
         
-        # if scroll_height > pad_view_height:
-        if True:
-            ui.draw_pad_scrollbar(stdscr,
-                                  pad_pos_y,
-                                  pad_height,
-                                  scroll_height,
-                                  pad_view_top,
-                                  pad_view_bottom,
-                                  pad_view_right
+        if scroll_height >= pad_view_height:
+            ui.draw_scroll_hint(stdscr, pad_view_bottom +1, max_x)
+        
+        ui.draw_pad_scrollbar(stdscr,
+            pad_pos_y,
+            pad_height,
+            scroll_height,
+            pad_view_top,
+            pad_view_bottom,
+            pad_view_right
             )
 
         
-        stdscr.refresh()
+        stdscr.noutrefresh()
+        pad.noutrefresh(pad_pos_y, 0, pad_view_top, pad_view_left, pad_view_bottom, pad_view_right)
+        curses.doupdate()
+
         key = stdscr.getch()
         # Handle scrolling input
         pad_cursor_y = ui.handle_scroll(key, pad_cursor_y, scroll_height)

@@ -53,6 +53,7 @@ def check_updates_screen(stdscr, download_files, delete_folders, aircraft_data):
     pad_height = max(len(pad_lines), pad_height_visible)
     pad_width = max_x - 5
     pad = curses.newpad(pad_height, pad_width)
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
 
     for i, line in enumerate(pad_lines):
         pad.addstr(i, 0, line)
@@ -153,6 +154,8 @@ def download_status_screen(stdscr, aircraft_data, download_files):
 
     # initialize pad
     pad = curses.newpad(pad_height_visible, pad_width)
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+
     file_lines = {} # maps (file, action) -> line number
     file_statuses = {} # maps (file, action) -> {"text": ..., "done": ..., "error": ..., "action": ...}
            
@@ -185,12 +188,13 @@ def download_status_screen(stdscr, aircraft_data, download_files):
         current_pad_height = pad.getmaxyx()[0]
         if line_y >= current_pad_height:
             pad.resize(line_y + 5, pad_width)
+        tab_width = max(len(status.get("action", "")) for status in file_statuses.values()) + 2
 
         # Clear and write line to pad
         pad.move(line_y, 0)
         line_action = file_statuses.get(key, {}).get("action", action)
-        formatted_line = f"{line_action.upper():<5} {ui.truncate_path(text, max_x - 7)}"  # left-align to 10 chars
-        pad.addstr(line_y, 0, formatted_line, attr)
+        formatted_line = f"{line_action.upper():<10} {ui.truncate_path(text, max_x - 7)}"  # left-align to 10 chars
+        pad.addstr(line_y, 0, f"{formatted_line:<{tab_width}}", attr)
         
         # auto scroll pad
         pad_y = max(0, line_y - pad_height_visible + 1)
@@ -198,16 +202,15 @@ def download_status_screen(stdscr, aircraft_data, download_files):
 
 
         # draw scrollbar when needed
-        if len(file_lines) > pad_height_visible:
-            ui.draw_pad_scrollbar(
-                stdscr,
-                pad_y,
-                len(file_lines),
-                pad_height_visible,
-                pad_top,
-                pad_bottom,
-                pad_width=max_x-3
-            )
+        ui.draw_pad_scrollbar(
+            stdscr,
+            pad_y,
+            len(file_lines),
+            pad_height_visible,
+            pad_top,
+            pad_bottom,
+            pad_width=max_x-3
+        )
         
         ui.draw_disclaimer(stdscr)
         stdscr.refresh()
@@ -257,6 +260,7 @@ def downloads_summary_screen(stdscr, aircraft_data, file_statuses):
     files_fail = 0
     files_partial = 0
 
+    tab_width = max(len(status.get("action", "")) for status in file_statuses.values()) + 2
     for key, status in file_statuses.items():
         text = status.get("text", "Unknown file")
         action = status.get("action", "unknown")
@@ -264,7 +268,7 @@ def downloads_summary_screen(stdscr, aircraft_data, file_statuses):
         error = status.get("error", False)
 
         # Build display text
-        display_text = f"{action.upper():<5} {ui.truncate_path(text, max_x - 7)}"
+        display_text = f"{action.upper():<{tab_width}}{ui.truncate_path(text, max_x - 7)}"
 
         # Correct status color
         if error:
@@ -276,7 +280,6 @@ def downloads_summary_screen(stdscr, aircraft_data, file_statuses):
         else:
             attr = curses.color_pair(ui.COLOR_PAIRS["status yellow"])
             files_partial += 1
-        
         file_lines.append((display_text, attr))
 
     success_message = f"Success : {files_success}"
@@ -302,14 +305,18 @@ def downloads_summary_screen(stdscr, aircraft_data, file_statuses):
     for label, pos_x in zip(labels, positions):
         ui.draw_pseudo_button(stdscr, max_y - 3, pos_x, label)
 
-    # Create pad scrolling area
-    pad_height = len(file_lines)
-    pad_height_visible = max_y - (y + 8) # Leave room for the footer
-    pad_y = y + 1
-    pad_top = 0
-    pad_bottom = pad_y + pad_height_visible - 1
+    pad_view_top = y + 1
+    pad_view_bottom = max_y - 7
+    pad_view_left = 2
+    pad_view_right = max_x - 3
+    pad_view_height = pad_view_bottom - pad_view_top + 1
+    pad_height = max(pad_view_height, len(file_lines))
     pad_width = max_x - 5
+
     pad = curses.newpad(pad_height, pad_width)
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+
+    pad_pos_y = 0
 
     # Draw content to pad
     for i, (line_text, line_attr) in enumerate(file_lines):
@@ -320,41 +327,39 @@ def downloads_summary_screen(stdscr, aircraft_data, file_statuses):
     
     
     #refresh pad
-    pad.refresh(pad_top, 0, pad_y, 2, pad_bottom, max_x - 2)
+    pad.noutrefresh(pad_pos_y, 0, pad_view_top, pad_view_left, pad_view_bottom, pad_view_right)
+    stdscr.noutrefresh()
+    curses.doupdate()
 
     # Scrolling refresh handler
     pad_pos = 0
     key = 0
 
     while True:
-        # Refresh pad based on current scroll offset
-        pad.refresh(
-            pad_pos, 0,
-            pad_y, 2,
-            pad_y + pad_height_visible,
-            max_x - 3
+        pad.noutrefresh(pad_pos_y, 0, pad_view_top, pad_view_left, pad_view_bottom, pad_view_right)
+        stdscr.noutrefresh()
+        curses.doupdate()
+        ui.draw_pad_scrollbar(
+            stdscr,
+            pad_pos_y,
+            pad_height,
+            pad_view_height,
+            pad_view_top,
+            pad_view_bottom,
+            pad_width = max_x - 3
         )
 
-        # Draw scrollbar only if current content exceeds visible area
-        if pad_height > pad_height_visible:
-            ui.draw_pad_scrollbar(
-                stdscr,
-                pad_pos,
-                pad_height,
-                pad_height_visible,
-                pad_y,
-                pad_y + pad_height_visible,
-                pad_width = max_x - 3
-            )
-            #show scroll hint at the bottom
-            ui.draw_scroll_hint(stdscr, pad_y + pad_height_visible + 1, max_x)
+        if pad_height > pad_view_height:
+            ui.draw_scroll_hint(stdscr, pad_view_bottom + 1, max_x)
+
         
         stdscr.refresh()
 
         key = stdscr.getch()
 
         # handle scrolling
-        pad_pos = ui.handle_scroll(key, pad_pos, pad_height - pad_height_visible)
+        pad_pos_y = ui.handle_scroll(key, pad_pos_y, pad_height - pad_view_height)
+        
         # continue
         if ui.is_continue(key):
             return True
@@ -407,6 +412,7 @@ def confirm_deletion_screen(stdscr, delete_folders, aircraft_data):
     pad_height = max(len(pad_lines), pad_height_visible)
     pad_width = max_x - 5
     pad = curses.newpad(pad_height, pad_width)
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
 
     for i, line in enumerate(pad_lines):
         pad.addstr(i, 0, line)
@@ -504,6 +510,8 @@ def delete_status_screen(stdscr, delete_folders, aircraft_data):
 
     # initialize pad
     pad = curses.newpad(pad_height_visible, pad_width)
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+
     file_lines = {} # maps (file, action) -> line number
     folder_statuses = {} # maps (file, action) -> {"text": ..., "done": ..., "error": ..., "action": ...}
         
@@ -653,20 +661,18 @@ def delete_summary_screen(stdscr, folder_statuses, aircraft_data):
         ui.draw_pseudo_button(stdscr, max_y - 3, pos_x, label)
 
     # Create pad scrolling area
-    pad_height = len(folder_lines)
-    pad_height_visible = max_y - (y + 8) # Leave room for the footer
-    pad_width = max_x - 5
-
     pad_view_top = y + 1
-    pad_view_bottom = min(pad_view_top + pad_height_visible - 1, max_y - 1)
+    pad_view_bottom = max_y - 8
     pad_view_left = 2
     pad_view_right = max_x - 3
-
-    # If pad is smaller then visible area, no scrolling
-    scrollable = pad_height > pad_height_visible
-    pad_pos = 0
+    pad_view_height = pad_view_bottom - pad_view_top + 1
+    pad_height = max(pad_view_height, len(folder_lines) + 1)
+    pad_width = max_x - 5
 
     pad = curses.newpad(pad_height, pad_width)
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+    
+    pad_pos_y = 0
 
     # Draw content to pad
     for i, (line_text, line_attr) in enumerate(folder_lines):
@@ -677,41 +683,36 @@ def delete_summary_screen(stdscr, folder_statuses, aircraft_data):
     
     
     #refresh pad
-    pad.refresh(pad_pos, 0, pad_view_top, pad_view_left, pad_view_bottom, pad_view_right)
+    pad.noutrefresh(pad_pos_y, 0, pad_view_top, pad_view_left, pad_view_bottom, pad_view_right)
+    stdscr.noutrefresh()
+    curses.doupdate()
+    
 
     # Scrolling refresh handler
     pad_pos = 0
     key = 0
 
     while True:
-        # Refresh pad based on current scroll offset
-        pad.refresh(
-            pad_pos, 0,
-            pad_view_top, pad_view_left,
-            pad_view_bottom,
-            pad_view_right
-        )
+        pad.noutrefresh(pad_pos_y, 0, pad_view_top, pad_view_left, pad_view_bottom, pad_view_right)
+        stdscr.noutrefresh()
+        curses.doupdate()
 
-        # Draw scrollbar only if current content exceeds visible area
-        if pad_height > pad_height_visible:
-            ui.draw_pad_scrollbar(
-                stdscr,
-                pad_pos,
-                pad_height,
-                pad_height_visible,
-                pad_view_top,
-                pad_view_top + pad_height_visible,
-                pad_width = max_x - 3
-            )
-            #show scroll hint at the bottom
-            ui.draw_scroll_hint(stdscr, pad_view_top + pad_height_visible + 1, max_x)
-        
-        stdscr.refresh()
+        ui.draw_pad_scrollbar(
+            stdscr,
+            pad_pos_y,
+            pad_height,
+            pad_view_height,
+            pad_view_top,
+            pad_view_bottom,
+            pad_width=max_x - 3
+        )
+        if pad_height > pad_view_height:
+            ui.draw_scroll_hint(stdscr, pad_view_bottom + 1, max_x)
 
         key = stdscr.getch()
 
         # handle scrolling
-        pad_pos = ui.handle_scroll(key, pad_pos, pad_height - pad_height_visible)
+        pad_pos_y = ui.handle_scroll(key, pad_pos_y, pad_height - pad_view_height)
         # continue
         if ui.is_continue(key):
             return
