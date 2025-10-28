@@ -19,13 +19,15 @@ def init_ui():
         "scrollbar",
         "status green",
         "status red",
-        "status yellow"
+        "status yellow",
+        "bluescreen"
     ], start=17)}
 
     curses.init_pair(COLOR_PAIRS["scrollbar"], curses.COLOR_WHITE, 8)
     curses.init_pair(COLOR_PAIRS["status green"], curses.COLOR_GREEN, curses.COLOR_BLACK)  # done text
     curses.init_pair(COLOR_PAIRS["status red"], curses.COLOR_RED, curses.COLOR_BLACK) # error text
     curses.init_pair(COLOR_PAIRS["status yellow"], curses.COLOR_YELLOW, curses.COLOR_BLACK) # yellow warning text
+    curses.init_pair(COLOR_PAIRS["bluescreen"], curses.COLOR_WHITE, curses.COLOR_BLUE) # white on blue
 
 def show_title(stdscr, title=None):
     if not title:
@@ -35,12 +37,45 @@ def show_title(stdscr, title=None):
     stdscr.addstr(1, 2, title)
     stdscr.attroff(curses.A_UNDERLINE | curses.A_BOLD)
 
+def new_menu_vertical(stdscr, menu_y, menu_x, options, current_index):
+    """
+    Renders a simple vertical menu list.
+    Handles drawing only - does not capture input or manage scrolling.
+    """
+    # Visual marker config
+    selected_prefix = "> "
+    normal_prefix = "  "
 
-def menu_vertical(stdscr, menu_y, menu_x, options):
+    # preventative
+    if not options:
+        return
+    
+    num_options = len(options)
+
+    # safe drawing size
+    max_y, max_x = stdscr.getmaxyx()
+    current_longest = min(max(len(opt) for opt in options) + len(selected_prefix), max_x - menu_x - 1)
+    previous_longest = getattr(menu_vertical, "_last_width", 0)
+    menu_vertical._last_width = max(previous_longest,current_longest)
+    draw_width = menu_vertical._last_width
+
+    # Track menu lines
+    for idx, option in enumerate(options):
+        y = menu_y + idx
+        is_selected = (idx == current_index)
+        prefix = selected_prefix if is_selected else normal_prefix
+        attr = curses.A_REVERSE if is_selected else curses.A_NORMAL
+        text = f"{prefix}{option}"
+
+        line = text.ljust(draw_width)[:draw_width]
+        stdscr.addstr(y, menu_x, line, attr)
+
+
+def menu_vertical(stdscr, menu_y, menu_x, options, current_index):
     """
     Reusable vertical selection menu, takes input for location.
     """
-    current_index = 0
+    current_index = current_index
     num_options = len(options)
 
     while True:
@@ -260,6 +295,10 @@ def is_quit(key):
     if key in (ord("q"),ord("Q"), 27):
         raise QuitFlow()
 
+class _QuitSentinel:
+    pass
+
+QUIT = _QuitSentinel()
 
 def is_accept(key):
     """
@@ -292,7 +331,7 @@ def handle_scroll(key, pos, max_pos):
     """
     Usage:
     key = stdscr.getch()
-    pad_pos = ui.handle_scroll(key, pad_pos, pad_height - pad_height_visible)
+    pad_pos = ui.handle_scroll(key, pos, max_pos)
     """
     if key in (curses.KEY_DOWN, ord("j"), ord("J")) and pos < max_pos:
         return min(pos + 1, max_pos)
