@@ -1,6 +1,6 @@
 import curses
 import traceback
-import main
+import core.main as main
 import views.ui_parts as ui
 from controllers.update_controller import _update_flow
 

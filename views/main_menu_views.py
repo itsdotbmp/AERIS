@@ -1,5 +1,5 @@
 import curses
-import main
+import core.main as main
 import views.ui_parts as ui
 from views.ui_parts import QUIT
 import time

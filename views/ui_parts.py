@@ -1,5 +1,5 @@
 import curses
-import main
+import core.main as main
 from controllers.exceptions import QuitFlow
 
 """

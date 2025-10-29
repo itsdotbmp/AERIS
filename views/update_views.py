@@ -1,5 +1,5 @@
 import curses
-import main
+import core.main as main
 import views.ui_parts as ui
 
 def check_updates_screen(stdscr, download_files, delete_folders, aircraft_data):

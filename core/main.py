@@ -12,6 +12,7 @@ import zipfile
 import atexit
 from urllib.error import HTTPError, URLError, ContentTooShortError
 import traceback
+from core import manifest_db as manifest
 
 software_version = "0.0.1"
 current_aircraft_id = None 
@@ -44,7 +45,7 @@ def get_base_dir():
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     else:
-        return os.path.dirname(os.path.abspath(__file__))
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
 def load_json():
     #load config JSON
@@ -96,6 +97,8 @@ try:
         format="%(asctime)s | %(message)s",
         handlers=[logging_handler]
     )
+    manifest.init_db(base_dir)
+
     
 except Exception as e:
     # if anything up to this point fails, crash - we can't continue
@@ -470,7 +473,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                             if update_callback:
                                 update_callback(f"{file}", file=file, action="extract", done=False)
                             
-                            safe_unzip(zip_ref, extract_path)
+                            safe_unzip(zip_ref, aircraft_id, extract_path)
 
                             if update_callback:
                                 update_callback(f"{file} - Success", file=file, action="extract", done=True)
@@ -491,7 +494,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                                 members = [name for name in zip_contents if name.startswith(folder + '/')]
                                 for member in members:
                                     # extract each member path into destination_folder (prevserves subpath)
-                                    safe_unzip(zip_ref, member, destination_folder)
+                                    safe_unzip(zip_ref, aircraft_id, member, destination_folder)
                             if update_callback:
                                 update_callback(f"{file} - Success", file=file, action="extract", done=True)
 
@@ -504,7 +507,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                             log_info(f"Unpacking '{file}' into safe folder '{extract_path}'", tag="EXTRACTING_START")
                             if update_callback:
                                 update_callback(f"{file}", file=file, action="extract", done=False)
-                            safe_unzip(zip_ref, extract_path)
+                            safe_unzip(zip_ref, aircraft_id, extract_path)
                             if update_callback:
                                 update_callback(f"{file} - Success", file=file, action="extract", done=True)
                         
@@ -657,24 +660,55 @@ def startup(show_warning=False):
 def shutdown():
     logging.info(f"PROGRAM_END | version={software_version}")
 
-def safe_unzip(zip_ref, *args):
+def safe_unzip(zip_ref, aircraft_id, *args):
     """
-    Unified unzip handler for both extractall() and extract(member, dest) use cases.
+    Unified unzip handler with manifest tracking.
+
     Usage:
-      safe_unzip(extract_path, all=True)  -> calls extractall
-      safe_unzip(member, destination_folder) -> calls extract
-    - Calls safe_delete(source) only if the source is a valid zip.
+      safe_unzip(zip_ref, aircraft_id, extract_path)  -> calls extractall
+      safe_unzip(zip_ref, aircraft_id, member, dest)  -> calls extract
+
+    After extraction:
+      - Each extracted file is hashed (MD5).
+      - Each file is recorded in the manifest DB.
     """
     if zip_ref is None:
         raise ValueError("safe_unzip() requires a ZipFile object as the first argument")
+    
+    extracted_files = []
+
     if len(args) == 1:
-        zip_ref.extractall(args[0])
+        extract_path = args[0]
+        zip_ref.extractall(extract_path)
+        # Collect all extracted files
+        for root, _, files in os.walk(extract_path):
+            for name in files:
+                extracted_files.append(os.path.join(root, name))
+
     elif len(args) == 2:
         member, dest = args
         zip_ref.extract(member, dest)
+        extracted_files.append(os.path.join(dest, os.path.basename(member)))
+
     else:
         raise ValueError(f"safe_unzip() expects 2 or 3 positional arguments including zip_ref, got {1 + len(args)} (zip_ref + {len(args)} additional)")
-
+    conn = manifest.get_conn()
+    # Hash and record f iles in manifest
+    try:
+        for file_path in extracted_files:
+            if os.path.isfile(file_path):
+                try:
+                    file_hash = manifest.compute_file_hash(file_path)
+                    manifest.add_file(aircraft_id, file_path, file_hash, conn=conn)
+                except Exception as e:
+                    log_warn(f"Failed to hash or record '{file_path}': {e}")
+            elif os.path.isdir(file_path):
+                try:
+                    manifest.add_folder(aircraft_id, file_path, conn=conn)
+                except Exception as e:
+                    log_warn(f"Failed to record folder '{file_path}': {e}")
+    finally:
+        manifest.close_conn(conn)
 
 def safe_delete(path: str, force_delete: bool = False):
     """

@@ -1,6 +1,6 @@
 import curses
-import main
-from main import log_info, log_error
+import core.main as main
+from core.main import log_info, log_error
 import os
 import views.ui_parts as ui
 from views.ui_parts import QUIT

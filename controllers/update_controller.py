@@ -1,6 +1,6 @@
 import curses
-import main
-from main import log_info, log_error
+import core.main as main
+from core.main import log_info, log_error
 import os
 import views.ui_parts as ui
 from views.update_views import check_updates_screen, download_status_screen, downloads_summary_screen, confirm_deletion_screen, delete_status_screen, delete_summary_screen
