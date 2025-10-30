@@ -46,10 +46,10 @@ def _main_menu_flow(stdscr):
         choice = main_menu(stdscr)
         if choice is QUIT:
             quit_program(stdscr)
-        if choice.lower() == "start update":
+        if choice.lower() == "start update" and main.current_aircraft_id:
             from controllers.update_controller import _update_flow
             _update_flow(stdscr, main.current_aircraft_id)
-        elif choice.lower() == "choose preset":
+        elif choice.lower() == "choose preset" and main.current_aircraft_id:
             from controllers.preset_selection_controller import _preset_selection_flow
             _preset_selection_flow(stdscr)
         # elif choice.lower() == "delete":

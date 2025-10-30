@@ -21,9 +21,13 @@ def init_ui():
         "status red",
         "status yellow",
         "bluescreen",
-        "dark blue"
+        "dark blue",
+        "error window",
+        "info window",
+        "window shadow"
     ], start=17)}
     dark_blue = 20
+    darker_blue = 19
 
     curses.init_pair(COLOR_PAIRS["scrollbar"], curses.COLOR_WHITE, 8)
     curses.init_pair(COLOR_PAIRS["status green"], curses.COLOR_GREEN, dark_blue)  # done text
@@ -31,6 +35,12 @@ def init_ui():
     curses.init_pair(COLOR_PAIRS["status yellow"], curses.COLOR_YELLOW, dark_blue) # yellow warning text
     curses.init_pair(COLOR_PAIRS["bluescreen"], curses.COLOR_WHITE, dark_blue) # white on blue
     curses.init_pair(COLOR_PAIRS["dark blue"], curses.COLOR_WHITE, dark_blue) # White on darker blue
+    curses.init_pair(COLOR_PAIRS["error window"], curses.COLOR_WHITE, curses.COLOR_RED)   # error
+    curses.init_pair(COLOR_PAIRS["info window"], curses.COLOR_BLACK, curses.COLOR_WHITE) # info
+    curses.init_pair(COLOR_PAIRS["window shadow"], darker_blue, darker_blue) # shadow
+
+def set_background(stdscr):
+    stdscr.bkgd(' ', curses.color_pair(COLOR_PAIRS["bluescreen"]))
 
 def show_title(stdscr, title=None):
     if not title:
@@ -108,64 +118,62 @@ def menu_vertical(stdscr, menu_y, menu_x, options, current_index):
 
 
 def show_popup(stdscr, message_lines, msg_type="info"):
-    # Display a centered popup screen with border and styled text
-    # Args:
-    #       stdscr: The main curses screen
-    #       message: List of strings to display inside the popup.
-    #       type: type of message, "error" gives a red background, "info" a white background.
+    """
+    Display a centered popup without overwriting the entire screen.
+    Only the popup area is redrawn; the underlying UI remains intact.
+    """
 
     curses.curs_set(0)
-
     max_y, max_x = stdscr.getmaxyx()
 
-    # Set popup size
+    # Popup size and position
     width = max(len(line) for line in message_lines) + 4
     height = len(message_lines) + 4
-
-    # center the popup
-    start_y = max((max_y - height)// 2, 0)
-    start_x = max((max_x - width)// 2, 0)
-    
-    # create a window for the popup
-    win = curses.newwin(height, width, start_y, start_x)
-
-    # Define colours
-    curses.start_color()
-    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_RED) # error style
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE) # normal info style
+    start_y = max((max_y - height) // 2, 0)
+    start_x = max((max_x - width) // 2, 0)
 
     if msg_type == "error":
-        attr = curses.color_pair(1) | curses.A_BOLD
-        border_ch = curses.ACS_DIAMOND
+        attr = curses.color_pair(COLOR_PAIRS["error window"]) | curses.A_BOLD
     else:
-        attr = curses.color_pair(2)
-        border_ch = curses.ACS_VLINE
-    
-    # Fill the background
+        attr = curses.color_pair(COLOR_PAIRS["info window"])
+
+    # --- Draw shadow (optional, subtle depth effect) ---
+    shadow = curses.newwin(height, width, start_y + 1, start_x + 2)
+    shadow.bkgd(" ", curses.color_pair(COLOR_PAIRS["window shadow"]))
+    shadow.refresh()
+
+    # --- Popup window itself ---
+    win = curses.newwin(height, width, start_y, start_x)
     win.bkgd(" ", attr)
-    win.clear()
+    win.box()
 
-    # Draw Border
-    win.border()
-
-    # Add text lines
+    # Text lines
     for idx, line in enumerate(message_lines):
-        win.addstr(2 + idx, 2, line[:width-4], attr)
+        win.addstr(2 + idx, 2, line[:width - 4], attr)
 
-    # User hint to press any key to continue
-    hint = "Press any key to return"
+    # Footer hint
+    hint = "Press any key to continue"
     hint_x = (width - len(hint)) // 2
-    win.addstr(height-1, hint_x, hint, attr | curses.A_BOLD)
-    
-    # Refresh the popup
+    win.addstr(height - 2, hint_x, hint, attr | curses.A_BOLD)
+
+    # Draw popup on top of whatever is already rendered
     win.refresh()
 
-    # Wait for user input
-    stdscr.getch()
+    # Wait for key press in popup context
+    win.getch()
 
-    # Clear popup after key press
+    # Clear the popup only — do not clear stdscr
     win.clear()
+    win.refresh()
+
+    # Erase the shadow
+    shadow.clear()
+    shadow.refresh()
+
+    # Tell curses to redraw the base screen below popup
+    stdscr.touchwin()
     stdscr.refresh()
+
 
 
 def draw_disclaimer(stdscr):

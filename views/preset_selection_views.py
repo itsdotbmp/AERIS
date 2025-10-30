@@ -10,7 +10,7 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
     curses.curs_set(0)
     stdscr.clear()
     max_y, max_x = stdscr.getmaxyx()
-
+    
 
     ui.show_title(stdscr)
     ui.draw_disclaimer(stdscr)
