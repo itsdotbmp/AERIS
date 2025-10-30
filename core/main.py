@@ -16,7 +16,7 @@ from core import manifest_db as manifest
 
 software_version = "0.0.1"
 current_aircraft_id = None 
-title = "86th vFW Livery Tool"
+title = "86th vFW: SCALES"
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
 
 def generate_json_boilerplate():
