@@ -269,7 +269,9 @@ def truncate_path(path, max_len):
 # Standard labels
 CONTINUE_PROMPT = "[Press SPACE to continue]"
 ACCEPT_PROMPT = "[A]ccept"
+YES_PROMPT = "[Y]es"
 CANCEL_PROMPT = "[C]ancel"
+NO_PROMPT = "[N]o"
 QUIT_PROMPT = "[Q]uit"
 DELETE_PROMPT = "[D]elete"
 
@@ -304,7 +306,7 @@ def is_continue(key):
     if ui.is_continue(key):
         return 
     """
-    return key in (ord(" "), ord("\n"), curses.KEY_ENTER)
+    return key == ord(" ")
 
 def is_quit(key):
     """
@@ -328,7 +330,10 @@ def is_accept(key):
     if ui.is_accept(key):
         return True
     """
-    return key in (ord("a"),ord("A"))
+    return key in (ord("a"),ord("A"), ord("\n"), ord("\r"), curses.KEY_ENTER)
+
+def is_yes(key):
+    return key in (ord("y"), ord("Y"))
 
 def is_cancel(key):
     """
@@ -338,6 +343,9 @@ def is_cancel(key):
         return False
     """
     return key in (ord("c"),ord("C"))
+
+def is_no(key):
+    return key in (ord("n"), ord("N"))
 
 def is_delete(key):
     """
@@ -358,4 +366,11 @@ def handle_scroll(key, pos, max_pos):
         return min(pos + 1, max_pos)
     elif key in (curses.KEY_UP, ord("k"), ord("K")) and pos > 0:
         return max(pos - 1, 0)
+    return pos
+
+def handle_horizontal_scroll(key, pos, max_pos):
+    if key in (curses.KEY_LEFT, ord("h"), ord("H")) and pos > 0:
+        return max(pos - 1, 0)
+    elif key in (curses.KEY_RIGHT, ord("l"), ord("L")) and pos < max_pos:
+        return min(pos + 1, max_pos)
     return pos

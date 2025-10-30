@@ -16,7 +16,7 @@ from core import manifest_db as manifest
 
 software_version = "0.0.1"
 current_aircraft_id = None 
-title = "86th vFW: SCALES"
+title = "86th vFW: AERIS"
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
 
 def generate_json_boilerplate():
@@ -142,6 +142,16 @@ def load_config():
         #Aircrafts
         aircrafts = config.get("aircrafts", {})
         default_aircraft_id = config.get("default_aircraft_id") or (next(iter(aircrafts)) if aircrafts else None)
+        if default_aircraft_id:
+                # Write default_aircraft_id back to config.json
+                config["default_aircraft_id"] = default_aircraft_id
+                try:
+                    with open(os.path.join(base_dir, "config.json"), "w") as f:
+                        json.dump(config, f, indent=4)
+                    log_info(f"default_aircraft_id not in config; wrote '{default_aircraft_id}' back to config.json", tag="SET CONFIG")
+                except Exception as e:
+                    log_error(f"Failed to write default_aircraft_id to config.json: {e}")
+
         if not default_aircraft_id:
             log_error("No default aircraft ID found in config")
             return False
