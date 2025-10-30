@@ -241,7 +241,9 @@ def truncate_path(path, max_len):
     """Truncate a file path from the start if it exceeds max_len."""
     if len(path) <= max_len:
         return path
-
+    
+    prefix = "..."
+    max(4, max_len - len(prefix))
     sep = "\\"
     parts = path.split(sep)
     # Build result from the end backwards
@@ -252,7 +254,7 @@ def truncate_path(path, max_len):
             break
         truncated = candidate
 
-    return "..." + truncated
+    return prefix + truncated
 
 ### BUTTON CONSTANTS ###
 

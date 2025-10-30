@@ -17,7 +17,7 @@
     "aircrafts": {
         "f-4e-45mc": { 
             "name": "F-4E Phantom II",
-            "folder": "f-4e-45mc/test",
+            "folder": "f-4e-45mc/test/test_load_folder",
             "remote_subfolder": null
         },
         "test_load": {

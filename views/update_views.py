@@ -193,8 +193,10 @@ def download_status_screen(stdscr, aircraft_data, download_files):
         # Clear and write line to pad
         pad.move(line_y, 0)
         line_action = file_statuses.get(key, {}).get("action", action)
-        formatted_line = f"{line_action.upper():<10} {ui.truncate_path(text, max_x - 7)}"  # left-align to 10 chars
-        pad.addstr(line_y, 0, f"{formatted_line:<{tab_width}}", attr)
+        safe_text = text.encode('ascii', 'replace').decode()
+        safe_width = pad_width - 12
+        formatted_line = f"{line_action.upper():<10} {ui.truncate_path(safe_text, safe_width)}"  # left-align to 10 chars
+        pad.addstr(line_y, 0, f"{formatted_line}", attr)
         
         # auto scroll pad
         pad_y = max(0, line_y - pad_height_visible + 1)
@@ -549,7 +551,7 @@ def delete_status_screen(stdscr, delete_folders, aircraft_data):
         pad.move(line_y, 0)
         pad.clrtoeol()
         action = folder_statuses.get(key, {}).get("action", action)
-        formatted_line = f"{action.upper():<5} {ui.truncate_path(text, max_x - 7)}"  # left-align to 10 chars
+        formatted_line = f"{action.upper():<5} {ui.truncate_path(text, 25)}"  # left-align to 10 chars
         pad.addstr(line_y, 0, formatted_line, attr)
         
         # auto scroll pad

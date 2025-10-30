@@ -52,5 +52,9 @@ def _main_menu_flow(stdscr):
         elif choice.lower() == "choose preset":
             from controllers.preset_selection_controller import _preset_selection_flow
             _preset_selection_flow(stdscr)
+        # elif choice.lower() == "delete":
+        #     main.delete_manifest_files(main.current_aircraft_id)
         elif choice == QUIT or choice.lower() == "quit":
             quit_program(stdscr)
+
+            

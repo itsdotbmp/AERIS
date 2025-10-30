@@ -414,12 +414,11 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
     os.makedirs(destination_folder, exist_ok=True)
 
     for file in download_files:
-        # build a correct URL using the aircraft ID for remote url
         file_url = get_remote_livery_url(aircraft_id) + file
         destination_file = os.path.normpath(os.path.join(destination_folder, file))
         log_info(f"Processing Download for {file}", tag="DOWNLOADING_START")
-        log_info(f"File URL:  {file_url}")
-        log_info(f"Destination Folder: {destination_file},")
+        log_info(f"File URL: {file_url}")
+        log_info(f"Destination Folder: {destination_file}")
         start_time = time.time()
 
         try:
@@ -428,114 +427,47 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
                 update_callback(f"{file}", file=file, action="download", done=False)
             urllib.request.urlretrieve(file_url, destination_file)
             elapsed = time.time() - start_time
+            manifest.add_file(aircraft_id, destination_file)
             if update_callback:
                 update_callback(f"{file} - Success", file=file, action="download", done=True)
             log_info(f"Download Completed of '{file}' in {elapsed:.2f} seconds", tag="DOWNLOAD_END")
 
-            # Unpack the file
+            # Unpack the file if it is a zip
             if zipfile.is_zipfile(destination_file):
                 try:
-                    with zipfile.ZipFile(destination_file, 'r') as zip_ref:
-                        zip_contents = zip_ref.namelist()
+                    # Call the new safe unzip function
+                    status, succeeded, failed = new_safe_unzip(destination_file, aircraft_id)
 
-                        # Top-level analysis for zip structure
-                        # root_files: entries are in the zip root no folders
-                        root_files = {
-                            e for e in zip_contents
-                            if '/' not in e and not e.endswith('/')
-                        }
-                        # top_level_folders: first path segment for entries containing '/'
-                        top_level_folders = {
-                            entry.split('/')[0] for entry in zip_contents if '/' in entry
-                        }
-                        # Decide upack strategy:
-                        # 1. Multi-livery pack: Strictly multiple top level folders and no files at root
-                        # 2. Single root folder: exactly one top-level folder and no top-level files
-                        # 3. Otherwise: create a safe folder named after the zip file
-                        is_multi_livery = (
-                            len(top_level_folders) > 1
-                            and len(root_files) == 0
-                            and "description.lua" not in {rf.lower() for rf in root_files}
-                        ) # If root files was not zero, then it could just be a common shared folder without a livery.
-                        
-                        is_single_root = (
-                            len(top_level_folders) == 1
-                            and len(root_files) == 0
-                            and not list(top_level_folders)[0].startswith('__MACOSX')
-                        )
-
-                        
-                        if is_single_root:
-                            root_folder_name = list(top_level_folders)[0]
-                            extract_path = destination_folder
-                            log_info(f"Unpacking '{file}' (root folder '{root_folder_name}') into '{extract_path}'", tag="EXTRACTING_START")
-                            
-                            if update_callback:
-                                update_callback(f"{file}", file=file, action="extract", done=False)
-                            
-                            safe_unzip(zip_ref, aircraft_id, extract_path)
-
-                            if update_callback:
-                                update_callback(f"{file} - Success", file=file, action="extract", done=True)
-                        elif is_multi_livery:
-                            # multiple seperate livery folders at top level, and no files at root:
-                            # extract these folders directly into destination folder with no extra enclosing folder
-                            log_warn(
-                                f"Multiple top-level folders detected in '{file}': {top_level_folders}. "
-                                f"Extracting each top-level folder directly into destination.",
-                                tag="EXTRACTING_MULTI"
-                            )
-
-                            if update_callback:
-                                update_callback(f"{file}", file=file, action="extract", done=False)
-
-                            # Extract only members that start with each top-level folder
-                            for folder in sorted(top_level_folders):
-                                members = [name for name in zip_contents if name.startswith(folder + '/')]
-                                for member in members:
-                                    # extract each member path into destination_folder (prevserves subpath)
-                                    safe_unzip(zip_ref, aircraft_id, member, destination_folder)
-                            if update_callback:
-                                update_callback(f"{file} - Success", file=file, action="extract", done=True)
-
-                        else:
-                            #fallback, mixed content or files at root, create a wrapping folder
-                            safe_folder_name = os.path.splitext(file)[0]
-                            extract_path = os.path.normpath(os.path.join(destination_folder, safe_folder_name))
-                            os.makedirs(extract_path, exist_ok=True)
-                            
-                            log_info(f"Unpacking '{file}' into safe folder '{extract_path}'", tag="EXTRACTING_START")
-                            if update_callback:
-                                update_callback(f"{file}", file=file, action="extract", done=False)
-                            safe_unzip(zip_ref, aircraft_id, extract_path)
-                            if update_callback:
-                                update_callback(f"{file} - Success", file=file, action="extract", done=True)
-                        
-                    elapsed = time.time() - start_time
-                    log_info(f"Unpack Complete for '{file}' in {elapsed:.2f} seconds", tag="EXTRACTING_END")
-                    
-                    # Only remove zip if successfully extracted
-                    try:
-                        safe_delete(destination_file)
-                        log_info(f"Removed ZIP file '{file}' after extraction", tag="DELETING_FILE")
-                    except Exception as e_rm:
-                        # delete errors shouldn't crash the program
-                        log_error(f"Failed to remove zip '{destination_file}': {e_rm}")
-
-                except (zipfile.BadZipFile, OSError, PermissionError) as e:
-                    # Extraction failed: Keep the zip and log, debugging, mark partial finished
-                    log_error(f"Error extracting '{file}': {e}")
+                    # Report via callback
                     if update_callback:
-                        # Mark as only partial finished
-                        update_callback(f"{file} - Extract failed - {e}", file=file, action="extract", done=False, error=False)         
-                    # Doon't remove destination_file; proceed to next file
+                        for f in succeeded:
+                            update_callback(f"{f} - Success", file=f, action="extract", done=True)
+                        for f in failed:
+                            update_callback(f"{f} - Failed", file=f, action="extract", done=False)
+
+                    log_info(f"Unpack Complete for '{file}': {status}", tag="EXTRACTING_END")
+
+                    # Only remove ZIP if any extraction succeeded
+                    if succeeded:
+                        try:
+                            safe_delete(destination_file)
+                            log_info(f"Removed ZIP file '{file}' after extraction", tag="DELETING_FILE")
+                        except Exception as e_rm:
+                            log_error(f"Failed to remove zip '{destination_file}': {e_rm}")
+                except (OSError, PermissionError, zipfile.BadZipFile) as e:
+                    log_error(f"Error processing zip '{file}': {e}")
+
+                    if update_callback:
+                        update_callback(f"{file} - Extract failed", file=file, action="extract", done=False)
+                    # Do not remove the zip, continue with next file
                     continue
             else:
-                # not a zip file, nothing to extract.
+                # Not a zip file
                 log_warn(f"Downloaded file '{file}' is not a zip archive; left in place", tag="NON_ZIP")
+                
                 if update_callback:
-                    update_callback(F"{file} is not a zip file", file=file, action="extract", done=False)
-                # If we want to remove non zip files uncomment next:
+                    update_callback(f"{file} is not a zip file", file=file, action="extract", done=False)
+                # Optional: remove non-zip files
                 # safe_delete(destination_file)
 
         except HTTPError as e:
@@ -554,6 +486,7 @@ def process_downloads(download_files, aircraft_id, update_callback=None):
             log_error(f"Local file error for '{file}': {e}")
             if update_callback:
                 update_callback(f"{file} - local file issue {e}", file=file, action="download", error=True)
+
 
 def process_deletes(delete_folders, aircraft_id, update_callback=None):
     working_folder = os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"])
@@ -672,6 +605,11 @@ def safe_unzip(zip_ref, aircraft_id, *args):
       - Each extracted file is hashed (MD5).
       - Each file is recorded in the manifest DB.
     """
+    ### CODE IS DANGEROUS, DOES NOT TRACK ALL FILES IN ALL SITUATIONS
+    ### TRAVERSES FOLDERS, WILL CAPTURE FILES THAT WERE NOT ADDED BY 
+    ### UNZIPPING THEM TO THE DESTINATION.
+    ### CODE NEEDS TO BE REWORKED
+    
     if zip_ref is None:
         raise ValueError("safe_unzip() requires a ZipFile object as the first argument")
     
@@ -710,6 +648,87 @@ def safe_unzip(zip_ref, aircraft_id, *args):
     finally:
         manifest.close_conn(conn)
 
+
+def new_safe_unzip(zip_path, aircraft_id):
+    """
+    Handles universal unzipping of livery packs
+    - zip_path : full path to zip file
+    - aircraft_id : usually the current_aircraft_d
+
+    Checks the structure of the zip file to determine
+    how to handle it. If the file needs to be extracted
+    into a folder of the same name, or if it contains
+    folders that need to be extracted next to the zip file.
+
+    Outputs if successful, partially successful, or failure
+    Tracks files extracted to log into manifest
+    """
+    zip_root = os.path.dirname(zip_path)
+    # os.makedirs(destination_folder, exist_ok=True)
+
+    # Is there a file
+    if not os.path.exists(zip_path):
+        raise FileNotFoundError(f"Zip file not found: {zip_path}")
+    
+    
+    abs_zip_root = os.path.abspath(zip_root)
+    succeeded = []
+    failed = []
+
+    with zipfile.ZipFile(zip_path, 'r') as zf:
+        conn = manifest.get_conn()
+        file_list = [info.filename for info in zf.infolist()]
+        root_files = {f for f in file_list if '/' not in f and not f.endswith('/')}
+        needs_wrapper = len(root_files) > 0
+
+        #if wrapper needed, extraction target moves inside new folder
+        extract_root = os.path.join(zip_root, os.path.splitext(os.path.basename(zip_path))[0]) \
+                       if needs_wrapper else zip_root
+        if needs_wrapper:
+            extract_root = os.path.join(zip_root, os.path.splitext(os.path.basename(zip_path))[0])
+            os.makedirs(extract_root, exist_ok=True)
+            succeeded.append(extract_root)
+            manifest.add_file(aircraft_id, extract_root, conn=conn)
+        else:
+            extract_root = zip_root
+        
+        os.makedirs(extract_root, exist_ok=True)
+        
+        
+
+        for member in zf.infolist():
+            normalized = os.path.normpath(member.filename)
+
+            # construct safe absolute target
+            abs_target = os.path.abspath(os.path.join(extract_root, normalized))
+            if not abs_target.startswith(abs_zip_root + os.sep):
+                raise ValueError(f"Unsafe ZIP entry detected: {member.filename}")
+            
+            try:
+                log_info(f"Extracting {member} to '{extract_root}'")
+                zf.extract(member, extract_root)
+                succeeded.append(abs_target)
+
+                ## hash = manifest.hash_file(abs_target)
+                manifest.add_file(aircraft_id, abs_target, conn=conn)
+
+            except Exception as e:
+                failed.append(member.filename)
+                log_error(f"Failed to extract '{member.filename}': {e}")
+                raise e
+                
+            
+        manifest.close_conn(conn)
+            
+    if failed and succeeded:
+        return "partial", succeeded, failed
+    elif failed and not succeeded:
+        return "failure", [], failed
+    else:
+        return "success", succeeded, []    
+
+
+
 def safe_delete(path: str, force_delete: bool = False):
     """
     Unified delete function.
@@ -738,7 +757,35 @@ def safe_delete(path: str, force_delete: bool = False):
     else:
         raise OSError(f"Unsupported file type: {path}")
 
-            
+def delete_manifest_files(aircraft_id: str):
+    """
+    Delete all files tracked in the manifest for a given aircraft_id.
+    Uses safe_delete and cleans up the manifest DB after each file.
+    Deletes from deepest path to top to ensure folders are empty.
+    """
+    files_to_delete = manifest.list_files(aircraft_id)  # returns list of (file_path, added_at)
+    
+    # Sort by path depth, deepest first
+    files_to_delete.sort(key=lambda x: x[0].count(os.sep), reverse=True)
+
+    for file_path, _ in files_to_delete:
+        try:
+            # Delete the file/folder using safe_delete
+            safe_delete(file_path, force_delete=False)
+
+            # Remove the entry from manifest DB
+            manifest.remove_file(aircraft_id, file_path)
+
+            log_info(f"Deleted: {file_path}")
+
+        except FileNotFoundError:
+            # File already missing, remove entry from manifest anyway
+            manifest.remove_file(aircraft_id, file_path)
+            log_error(f"File not found, removed manifest entry: {file_path}")
+
+        except Exception as e:
+            log_error(f"Failed to delete {file_path}: {e}")
+          
     
 
 ### ATOMIZED UNZIP AND TRACKING OF FILES // PSEUDO CODE

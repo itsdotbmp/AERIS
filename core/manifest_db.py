@@ -45,7 +45,7 @@ def close_conn(conn: sqlite3.Connection):
     conn.close()
 
 
-def add_file(aircraft_id: str, file_path: str, file_hash: str, conn: sqlite3.Connection = None):
+def add_file(aircraft_id: str, file_path: str, file_hash: str = None, conn: sqlite3.Connection = None):
     """Add a file entry to the manifest."""
     own_conn = False
     if conn is None:
