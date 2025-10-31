@@ -13,7 +13,7 @@ Instead of redownloading massive archives, users receive only the changed files,
 
 ## Installation
 
-1. Go to the [Releases](https://github.com/aeris/releases) page and download the latest `AERIS.exe`.
+1. Go to the [Releases](https://github.com/itsdotbmp/AERIS/releases/) page and download the latest `AERIS.exe`.
 2. Place the exe in a new, empty folder. For example:
 
 ```
@@ -49,13 +49,13 @@ Use forward slashes `/`. Backslashes `\` will cause errors.
 
 ```json
 "aircrafts": {
-    "86fw_f4e": {
-        "name": "86th vFW - F-4E Phantom II",
+    "aeris_example_f4e": {
+        "name": "AERIS F-4E Phantom II",
         "folder": "f-4e-45mc",
         "remote_subfolder": null
     },
-    "86fw_f-16c": {
-        "name": "86th vFW - F-16C Fighting Falcon",
+    "aeris_example_f-16c": {
+        "name": "AERIS F-16C Fighting Falcon",
         "folder": "f-16c",
         "remote_subfolder": "f-16"
     }

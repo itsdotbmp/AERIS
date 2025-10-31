@@ -20,12 +20,12 @@ This guide is intended for repository maintainers and advanced users who want to
 
 ```text
 <repo-root>/
- ├─ 86vfw_f4e/                # Repository 1
- │   ├─ 86vfw-f4e_version.txt
+ ├─ aeris_f4e/                # Repository 1
+ │   ├─ aeris-f4e_version.txt
  │   ├─ F4E_PhantomII.zip
  │   └─ ...
- └─ 86vfw_f16/                # Repository 2
-     ├─ 86vfw-f16_version.txt
+ └─ aeris_f16/                # Repository 2
+     ├─ aeris-f16_version.txt
      ├─ F16C_FightingFalcon.zip
      └─ ...
 ```
@@ -34,7 +34,7 @@ This guide is intended for repository maintainers and advanced users who want to
 
 1. **Naming**
    The version file must be prefixed with the preset ID as configured in the user’s `config.json`.
-   Example: `86vfw-f4e_version.txt` where `86vfw-f4e` is the preset ID.
+   Example: `aeris-f4e_version.txt` where `aeris-f4e` is the preset ID.
 
 2. **User-Facing Information**
    The top section of the version file should be readable by users. It can include:
@@ -134,15 +134,15 @@ AERIS supports multiple presets per user. Each preset should have a unique prese
 Example preset JSON for users:
 
 ```json
-"86vfw_f4e": {
+"aeris_f4e": {
     "name": "F-4E Phantom II",
     "folder": "f-4e-45mc",
     "remote_subfolder": null
 },
-"86vfw_f16": {
+"aeris_f16": {
     "name": "F-16C Fighting Falcon",
-    "folder": "f-16c/test",
-    "remote_subfolder": "86vfw_f16"
+    "folder": "f-16c",
+    "remote_subfolder": "aeris_f16"
 }
 ```
 
