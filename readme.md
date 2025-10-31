@@ -27,8 +27,6 @@ This allows the program to create required configuration and data files around i
 
 Once you have the config files, you are ready to set up your first preset.
 
----
-
 ## Configuration
 
 The program requires a `config.json` file. The first time you run AERIS, a default (mostly empty) config file is created. You must fill in a few critical fields.
@@ -69,8 +67,6 @@ Use forward slashes `/`. Backslashes `\` will cause errors.
 
 After editing, completely quit and restart AERIS for changes to take effect.
 
----
-
 ## Using AERIS
 
 1. Launch AERIS.
@@ -89,8 +85,6 @@ After editing, completely quit and restart AERIS for changes to take effect.
 
 Your liveries are now updated.
 
----
-
 ## Troubleshooting
 
 * JSON Errors: Extra or missing commas or using `\` instead of `/` will prevent AERIS from starting. Check your config carefully.
@@ -101,4 +95,4 @@ Your liveries are now updated.
 
 ## Advanced Usage and Repository Setup
 
-Detailed instructions for repository maintainers, including zip file layout, version files, and multiple repo management, are available in the [GitHub Documentation](https://github.com/aeris/docs).
+Detailed instructions for repository maintainers, including zip file layout, version files, and multiple repo management, are available in the [Advanced Usage Documentation](https://github.com/itsdotbmp/AERIS/advanced_usage.html).
