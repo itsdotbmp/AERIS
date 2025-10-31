@@ -53,7 +53,7 @@ def check_updates_screen(stdscr, download_files, delete_folders, aircraft_data):
     pad_height = max(len(pad_lines), pad_height_visible)
     pad_width = max_x - 5
     pad = curses.newpad(pad_height, pad_width)
-    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
 
     for i, line in enumerate(pad_lines):
         pad.addstr(i, 0, line)
@@ -154,7 +154,7 @@ def download_status_screen(stdscr, aircraft_data, download_files):
 
     # initialize pad
     pad = curses.newpad(pad_height_visible, pad_width)
-    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
 
     file_lines = {} # maps (file, action) -> line number
     file_statuses = {} # maps (file, action) -> {"text": ..., "done": ..., "error": ..., "action": ...}
@@ -316,7 +316,7 @@ def downloads_summary_screen(stdscr, aircraft_data, file_statuses):
     pad_width = max_x - 5
 
     pad = curses.newpad(pad_height, pad_width)
-    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
 
     pad_pos_y = 0
 
@@ -414,7 +414,7 @@ def confirm_deletion_screen(stdscr, delete_folders, aircraft_data):
     pad_height = max(len(pad_lines), pad_height_visible)
     pad_width = max_x - 5
     pad = curses.newpad(pad_height, pad_width)
-    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
 
     for i, line in enumerate(pad_lines):
         pad.addstr(i, 0, line)
@@ -512,7 +512,7 @@ def delete_status_screen(stdscr, delete_folders, aircraft_data):
 
     # initialize pad
     pad = curses.newpad(pad_height_visible, pad_width)
-    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
 
     file_lines = {} # maps (file, action) -> line number
     folder_statuses = {} # maps (file, action) -> {"text": ..., "done": ..., "error": ..., "action": ...}
@@ -672,7 +672,7 @@ def delete_summary_screen(stdscr, folder_statuses, aircraft_data):
     pad_width = max_x - 5
 
     pad = curses.newpad(pad_height, pad_width)
-    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
     
     pad_pos_y = 0
 

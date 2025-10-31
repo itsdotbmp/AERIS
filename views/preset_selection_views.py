@@ -38,7 +38,7 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
 
     
     pad = curses.newpad(pad_height, pad_width)
-    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark blue"]))
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
     
     pad_pos_y = 0
     pad_cursor_y = 0

@@ -21,23 +21,32 @@ def init_ui():
         "status red",
         "status yellow",
         "bluescreen",
+        "amberscreen",
         "dark blue",
+        "dark amber",
         "error window",
         "info window",
         "window shadow"
     ], start=17)}
     dark_blue = 20
     darker_blue = 19
+    amber = 214
+    dark_amber = 166
+    dark_grey = 233
+    background_color = dark_grey
+    text_color = amber
 
-    curses.init_pair(COLOR_PAIRS["scrollbar"], curses.COLOR_WHITE, 8)
-    curses.init_pair(COLOR_PAIRS["status green"], curses.COLOR_GREEN, dark_blue)  # done text
-    curses.init_pair(COLOR_PAIRS["status red"], curses.COLOR_RED, dark_blue) # error text
-    curses.init_pair(COLOR_PAIRS["status yellow"], curses.COLOR_YELLOW, dark_blue) # yellow warning text
+    curses.init_pair(COLOR_PAIRS["scrollbar"], amber, dark_amber)
+    curses.init_pair(COLOR_PAIRS["status green"], curses.COLOR_GREEN, background_color)  # done text
+    curses.init_pair(COLOR_PAIRS["status red"], curses.COLOR_RED, background_color) # error text
+    curses.init_pair(COLOR_PAIRS["status yellow"], curses.COLOR_YELLOW, background_color) # yellow warning text
     curses.init_pair(COLOR_PAIRS["bluescreen"], curses.COLOR_WHITE, dark_blue) # white on blue
+    curses.init_pair(COLOR_PAIRS["amberscreen"], text_color, background_color)
     curses.init_pair(COLOR_PAIRS["dark blue"], curses.COLOR_WHITE, dark_blue) # White on darker blue
+    curses.init_pair(COLOR_PAIRS["dark amber"], text_color, background_color) # Amber on dark grey
     curses.init_pair(COLOR_PAIRS["error window"], curses.COLOR_WHITE, curses.COLOR_RED)   # error
     curses.init_pair(COLOR_PAIRS["info window"], curses.COLOR_BLACK, curses.COLOR_WHITE) # info
-    curses.init_pair(COLOR_PAIRS["window shadow"], darker_blue, darker_blue) # shadow
+    curses.init_pair(COLOR_PAIRS["window shadow"], curses.COLOR_BLACK, curses.COLOR_BLACK) # shadow
 
 def set_background(stdscr):
     stdscr.bkgd(' ', curses.color_pair(COLOR_PAIRS["bluescreen"]))

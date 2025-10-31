@@ -14,7 +14,7 @@ from urllib.error import HTTPError, URLError, ContentTooShortError
 import traceback
 from core import manifest_db as manifest
 
-software_version = "0.0.1"
+software_version = "0.0.2"
 current_aircraft_id = None 
 title = "86th vFW: AERIS"
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
