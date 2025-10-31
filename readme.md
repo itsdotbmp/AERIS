@@ -27,8 +27,6 @@ This allows the program to create required configuration and data files around i
 
 Once you have the config files, you are ready to set up your first preset.
 
----
-
 ## Configuration
 
 The program requires a `config.json` file. The first time you run AERIS, a default (mostly empty) config file is created. You must fill in a few critical fields.
@@ -69,8 +67,6 @@ Use forward slashes `/`. Backslashes `\` will cause errors.
 
 After editing, completely quit and restart AERIS for changes to take effect.
 
----
-
 ## Using AERIS
 
 1. Launch AERIS.
@@ -88,8 +84,6 @@ After editing, completely quit and restart AERIS for changes to take effect.
 6. When finished, a summary screen shows any errors or actions taken. You may continue from this screen.
 
 Your liveries are now updated.
-
----
 
 ## Troubleshooting
 
