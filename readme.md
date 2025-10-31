@@ -95,4 +95,4 @@ Your liveries are now updated.
 
 ## Advanced Usage and Repository Setup
 
-Detailed instructions for repository maintainers, including zip file layout, version files, and multiple repo management, are available in the [Advanced Usage Documentation](https://github.com/itsdotbmp/AERIS/advanced_usage.html).
+Detailed instructions for repository maintainers, including zip file layout, version files, and multiple repo management, are available in the [Advanced Usage Documentation](https://itsdotbmp.github.io/AERIS/advanced_usage.html).
