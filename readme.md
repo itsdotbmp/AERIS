@@ -15,7 +15,7 @@ Instead of redownloading massive archives, users receive only the changed files,
 
 ## Installation
 
-1. Go to the [Releases](https://github.com/<your-repo>/releases) page and download the latest `AERIS.exe`.
+1. Go to the [Releases](https://github.com/aeris/releases) page and download the latest `AERIS.exe`.
 2. Place the exe in a new, empty folder. For example:
 
 ```
