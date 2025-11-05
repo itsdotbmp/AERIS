@@ -53,6 +53,11 @@ def load_json():
     with open(config_file, "r", encoding="utf-8") as f:
         config = json.load(f)
 
+def save_json(path, data):
+    #save config JSON
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
 def custom_logging_namer(default_name):
     """
     Transforms default rotated names (base.log.1) into desired format (liveries1.log)
@@ -813,15 +818,3 @@ atexit.register(shutdown)
 if __name__ == "__main__":
     startup(show_warning=True)
     logging.critical(f"CRITICAL | Program launched from main.py, please run the program from interface.py")
-
-## TO DO :
-## ADD basic config editing ability, setting users saved games folder/liveries folder
-## updating URL to the correct server URL for the versions file
-## adding aircraft configs
-## editing aircraft configs
-## Changing the base folder where local files for the app are stored ?maybe?
-## 
-## Further work:
-## Readme, other documentation on how to use the client
-## Documentation on how to set up the server side and make releases
-## Build py exe file environment and test

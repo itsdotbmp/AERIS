@@ -1,7 +1,5 @@
-import curses
 import core.main as main
 from core.main import log_info, log_error
-import os
 import views.ui_parts as ui
 from views.ui_parts import QUIT
 from views.preset_selection_views import preset_selection_screen

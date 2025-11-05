@@ -54,6 +54,9 @@ def _main_menu_flow(stdscr):
             _preset_selection_flow(stdscr)
         # elif choice.lower() == "delete":
         #     main.delete_manifest_files(main.current_aircraft_id)
+        elif choice.lower() == "config":
+            from controllers.config_editor import _config_editor_flow
+            _config_editor_flow(stdscr)
         elif choice == QUIT or choice.lower() == "quit":
             quit_program(stdscr)
 

@@ -1,6 +1,8 @@
 import curses
 import core.main as main
 from controllers.exceptions import QuitFlow
+import textwrap
+
 
 """
 Generic parts and pieces of UI that can be reused
@@ -26,7 +28,9 @@ def init_ui():
         "dark amber",
         "error window",
         "info window",
-        "window shadow"
+        "window shadow",
+        "edit field",
+        "amberscreen_rev"
     ], start=17)}
     dark_blue = 20
     darker_blue = 19
@@ -47,6 +51,8 @@ def init_ui():
     curses.init_pair(COLOR_PAIRS["error window"], curses.COLOR_WHITE, curses.COLOR_RED)   # error
     curses.init_pair(COLOR_PAIRS["info window"], curses.COLOR_BLACK, curses.COLOR_WHITE) # info
     curses.init_pair(COLOR_PAIRS["window shadow"], curses.COLOR_BLACK, curses.COLOR_BLACK) # shadow
+    curses.init_pair(COLOR_PAIRS["edit field"], amber, 235) # For entry fields
+    curses.init_pair(COLOR_PAIRS["amberscreen_rev"], background_color, text_color)
 
 def set_background(stdscr):
     stdscr.bkgd(' ', curses.color_pair(COLOR_PAIRS["bluescreen"]))
@@ -283,6 +289,8 @@ CANCEL_PROMPT = "[C]ancel"
 NO_PROMPT = "[N]o"
 QUIT_PROMPT = "[Q]uit"
 DELETE_PROMPT = "[D]elete"
+ENTER_PROMPT = "[ENTER]"
+ESC_PROMPT = "[ESC]"
 
 # Standard spacing between buttons
 BUTTON_SPACING = 8
@@ -321,7 +329,9 @@ def is_quit(key):
     """
     Usage:
     key = stdscr.getch()
-    if ui.is_quit(key):
+    try:
+        ui.is_quit(key)
+    except ui.QuitFlow:
         return
     """
     if key in (ord("q"),ord("Q"), 27):
@@ -383,3 +393,63 @@ def handle_horizontal_scroll(key, pos, max_pos):
     elif key in (curses.KEY_RIGHT, ord("l"), ord("L")) and pos < max_pos:
         return min(pos + 1, max_pos)
     return pos
+
+def text_input(win, current_text, attr, pos_y, pos_x, width):
+    """
+    Handles modular text input inside a curses window.
+
+    Args:
+        win: curses window object (can be stdscr, a pad, or a modal window)
+        current_text: str, initial content
+        pos_y, pos_x: starting position of the input field in the window
+        width: visible width of the field
+        height: number of lines (default=1)
+    
+    Returns:
+        final_text (str) when user presses Enter, or None if cancelled.
+    """
+    win.keypad(True)
+    curses.curs_set(1)
+    text_buffer = list(current_text) # Editable character buffer, might start prepopulated
+    cursor_pos = len(current_text)   # Postion of the cursor in the buffer
+    scroll_offset = 0                # For horizontal scrolling
+
+    ## for multi line editing
+    lines = [] # lines after wrapping by width
+    cursor_y = 0 # vertical position
+    cursor_x = cursor_pos % width # horizonal position in visible area
+
+    while True:
+        # Compute visible text portion
+        if cursor_pos - scroll_offset >= width:
+            scroll_offset = cursor_pos - width + 1
+        elif cursor_pos < scroll_offset:
+            scroll_offset = cursor_pos
+
+        visible_text = text_buffer[scroll_offset : scroll_offset + width]
+        display_text = "".join(visible_text).ljust(width)
+        
+        win.addstr(pos_y, pos_x, display_text, attr)
+        win.move(pos_y, pos_x + cursor_pos - scroll_offset)
+        win.refresh()
+
+        key = win.getch()
+        if key in (curses.KEY_BACKSPACE, 127, 8):
+            if cursor_pos > 0:
+                text_buffer.pop(cursor_pos - 1)
+                cursor_pos -= 1
+        elif key in (curses.KEY_LEFT,):
+            cursor_pos = max(cursor_pos - 1, 0)
+        elif key in (curses.KEY_RIGHT,):
+            cursor_pos = min(cursor_pos + 1, len(text_buffer))
+        elif key == curses.KEY_DC:  # Delete clears all text
+            text_buffer.clear()
+            cursor_pos = 0
+        elif 32 <= key <= 126:  # Printable ASCII
+            text_buffer.insert(cursor_pos, chr(key))
+            cursor_pos += 1
+        elif key in (curses.KEY_ENTER, 10, 13):
+            return "".join(text_buffer), "confirm"
+        elif key == 27:  # Esc
+            return current_text, "cancel"
+

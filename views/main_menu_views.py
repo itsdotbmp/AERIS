@@ -77,7 +77,7 @@ def main_menu(stdscr):
     
 
     current_index = 0
-    selections = ["Choose Preset", "Start Update", "Quit"]
+    selections = ["Choose Preset", "Config", "Start Update", "Quit"]
     while True:
         ui.new_menu_vertical(stdscr, y, 2, selections, current_index)
         stdscr.refresh()
