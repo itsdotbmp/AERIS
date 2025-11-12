@@ -3,7 +3,7 @@ import core.main as main
 import views.ui_parts as ui
 from views.ui_parts import QUIT
 
-def preset_selection_screen(stdscr, aircraft_presets_list):
+def preset_selection_screen(stdscr, aircraft_presets_dict):
     current_aircraft_id = main.current_aircraft_id
     current_aircraft_data = main.get_aircraft_info(current_aircraft_id)
 
@@ -32,7 +32,7 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
     pad_view_left = 2
     pad_view_right = max_x - 3
     pad_view_height = pad_view_bottom - pad_view_top + 1
-    pad_height = max(pad_view_height, len(aircraft_presets_list) + 1 )
+    pad_height = max(pad_view_height, len(aircraft_presets_dict) + 1 )
     pad_width = max_x - 5
     _y = pad_view_bottom + 1
 
@@ -53,8 +53,8 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
 
     while True:
         pad.erase()
-        for idx, preset in enumerate(aircraft_presets_list):
-            preset_id = preset.get("id", "")
+        for idx, (preset_id, preset) in enumerate(aircraft_presets_dict.items()):
+            
             preset_name = preset.get("name", "")
             preset_folder = preset.get("folder", "")
             preset_url = preset.get("url", "")
@@ -83,7 +83,7 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
         stdscr.addstr(_y + 3, 2, f"Download URL: {display_url}")    
    
         
-        scroll_height = len(aircraft_presets_list) - 1
+        scroll_height = len(aircraft_presets_dict) - 1
         
         if scroll_height >= pad_view_height:
             ui.draw_scroll_hint(stdscr, pad_view_bottom +1, max_x)
@@ -111,10 +111,14 @@ def preset_selection_screen(stdscr, aircraft_presets_list):
         elif pad_cursor_y >= pad_pos_y + pad_view_height:
             pad_pos_y = pad_cursor_y - pad_view_height + 1  # scroll down
         
+        preset_ids = list(aircraft_presets_dict.keys())
+
         if ui.is_quit(key):
             return False, None
         if ui.is_cancel(key):
             return False, None
         if ui.is_accept(key):
-            return True, aircraft_presets_list[pad_cursor_y]["id"]
+            selected_id = preset_ids[pad_cursor_y]
+            if aircraft_presets_dict[selected_id].get("valid", False):
+                return True, preset_ids[pad_cursor_y]
             

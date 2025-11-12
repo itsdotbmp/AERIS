@@ -13,32 +13,50 @@ import atexit
 from urllib.error import HTTPError, URLError, ContentTooShortError
 import traceback
 from core import manifest_db as manifest
+import yaml
+
 
 software_version = "0.0.2"
 current_aircraft_id = None 
 title = "86th vFW: AERIS"
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
 
-def generate_json_boilerplate():
-    with open(config_file, "w", encoding="utf-8") as file:
-        json.dump({
-            "config_version": 1,
-            "program": {
-                "server_url": None,
-                "version_filename": "version.txt",
-                "server_version_file": "server_version.txt"
-            },
-            "logging": {
-                "log_file_name": "liveries.log",
-                "max_bytes": 500000,
-                "backup_count": 5
-            },
-            "environment": {
-                "liveries_folder": None
-            },
-            "default_aircraft_id": None,
-            "aircrafts": {}
-        }, file, indent=4)
+def generate_example_preset(path):
+    t = time.gmtime()
+    date_created = f"{t.tm_year}-{t.tm_mon:02}-{t.tm_mday:02}T{t.tm_hour:02}:{t.tm_min:02}:{t.tm_sec:02}Z"
+
+    example = {
+        "example_preset": {
+            "preset_version": 2,
+            "name": "Example Preset",
+            "folder": "example",
+            "remote_subfolder": None,
+            "date_created": date_created
+        }
+    }
+    save_conf(path, example)
+    
+
+def generate_config_boilerplate(path):
+    boilerplate = {
+        "config_version": 2,
+        "program": {
+            "server_url": None,
+            "version_filename": "version.txt",
+            "server_version_file": "server_version.txt"
+        },
+        "logging": {
+            "log_file_name": "liveries.log",
+            "max_bytes": 500000,
+            "backup_count": 5
+        },
+        "environment": {
+            "liveries_folder": None
+        },
+        "default_aircraft_id": None,
+        "aircrafts": {}
+    }
+    save_conf(path, boilerplate)
 
 # Handle getting the local root folder we're in depending if running the script, or the exe
 def get_base_dir():
@@ -46,17 +64,77 @@ def get_base_dir():
         return os.path.dirname(sys.executable)
     else:
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
-def load_json():
-    #load config JSON
-    global config
-    with open(config_file, "r", encoding="utf-8") as f:
-        config = json.load(f)
 
-def save_json(path, data):
+
+CONTAINER_EXTENSIONS = {
+    ".dat", ".preset", ".cart", ".tape", ".aer", ".set"
+}
+
+
+def detect_format(path):
+    """ Detect JSON vs YAML """
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    if not text.strip():
+        raise ValueError(f"File is empty: {path}")
+    
+    try:
+        json.loads(text)
+        return "json"
+    except json.JSONDecodeError:
+        pass
+    # fallback to YAML
+    try:
+        docs = list(yaml.safe_load_all(text))
+        if not docs:
+            raise ValueError(f"YAML parsing yielded no documents: {path}")
+        return "yaml"
+    except Exception as e:
+        raise ValueError(f"Cannot detect format for {path}: {e}")
+        
+
+def load_conf(path = None):
+    #load config JSON
+    if path is None:
+        path = config_file
+    ext = os.path.splitext(path)[1].lower()
+
+    if not os.path.exists(path):
+        raise ValueError(f"Config or Preset file Path not found: {path}")
+
+    if ext in (".json", ".yaml", ".yml"):
+        with open(path, "r", encoding="utf-8") as f:
+            if ext in (".json",):
+                config = json.load(f)
+            elif ext in (".yaml", ".yml"):
+                config = yaml.safe_load(f)
+    elif ext in CONTAINER_EXTENSIONS:
+        fmt = detect_format(path)
+        with open(path, "r", encoding="utf-8") as f:
+            if fmt == "json":
+                return json.load(f)
+            else:
+                return yaml.safe_load(f)
+    else:
+        raise ValueError(f"Unsupported config format: {path}")
+    return config
+        
+load_json = load_conf
+
+def save_conf(path, data):
     #save config JSON
+    ext = os.path.splitext(path)[1].lower()
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+        if ext == ".json":
+            json.dump(data, f, indent=4, ensure_ascii=False, sort_keys=False)
+        elif ext in (".yaml", ".yml") or ext in CONTAINER_EXTENSIONS:
+            import yaml
+            yaml.safe_dump(data, f, sort_keys=False)
+        else:
+            log_error(f"Unsupported config format: {path}")
+            raise ValueError(f"Unsupported config format: {path}")
+
+save_json = save_conf
 
 def custom_logging_namer(default_name):
     """
@@ -72,16 +150,34 @@ def custom_logging_namer(default_name):
         return f"{base_name}{number}{ext}"
     return default_name
 
+
+## IMPORT STARTS
 try:
     base_dir =  get_base_dir()
-    config_file = os.path.join(base_dir, "config.json")
 
-    # Make sure we have a config file
-    if not os.path.exists(config_file):
-        #Create a boilerplate config
-        generate_json_boilerplate()
-    
-    load_json()
+    yaml_path = os.path.join(base_dir, "config.yaml")
+    yaml_path_short = os.path.join(base_dir, "config.yml")
+    json_path = os.path.join(base_dir, "config.json")
+
+    if os.path.exists(yaml_path):
+        config_file = yaml_path
+    elif os.path.exists(yaml_path_short):
+        config_file = yaml_path_short
+    elif os.path.exists(json_path):
+        config_file = json_path
+    else:
+        # no config file found, create one
+        try:
+            generate_config_boilerplate(yaml_path)
+            config_file = yaml_path
+        except Exception as e_yaml:
+            logging.error(f"ERROR | main.py import | Failed to create YAML config: {e_yaml}, falling back to JSON")
+            generate_config_boilerplate(json_path)
+            config_file = json_path
+            
+    config = load_conf(config_file)
+    if config is None:
+        raise RuntimeError(f"Config file {config_file} is empty or invald")
 
     ## LOGGING CONFIG ##
     log_file_name = config["logging"].get("log_file_name", "liveries.log")
@@ -104,10 +200,42 @@ try:
     )
     manifest.init_db(base_dir)
 
+    try:
+        preset_dir = None
+        for entry in os.listdir(base_dir):
+            if entry.lower() == "presets" and os.path.isdir(os.path.join(base_dir, entry)):
+                preset_dir = os.path.join(base_dir, entry)
+                break
+        
+        created_presets_dir = False
+        if preset_dir is None:
+            preset_dir = os.path.join(base_dir, "presets")
+            os.makedirs(preset_dir, exist_ok=True)
+            logging.info(f"INFO PRESET | import main.py | Created presets folder at {preset_dir}")
+            created_presets_dir = True
+            
+            
+        if created_presets_dir:
+            try:
+                example_path = os.path.join(preset_dir, "example_preset.set")
+                generate_example_preset(example_path)
+                logging.info(f"INFO PRESET | import main.py | Created presets example at {example_path}")
+            except Exception as e_yaml:
+                logging.error(f"ERROR | main.py import | Failed to create YAML preset: {e_yaml}, falling back to JSON")
+                example_path = os.path.join(preset_dir, "example_preset.set")
+                generate_example_preset(example_path)
+                logging.info(f"INFO PRESET | import main.py | Created presets example at {example_path}")
+            
+    
+    except Exception as e:
+        logging.error(f"ERROR | import main.py | Failed to create presets folder: {e}")
+        raise
     
 except Exception as e:
     # if anything up to this point fails, crash - we can't continue
     raise RuntimeError(f"Critical startup failure: {e}")
+## IMPORT ENDS
+
 
 def load_config():
     """
@@ -122,8 +250,9 @@ def load_config():
     global aircrafts
     global default_aircraft_id
     global current_aircraft_id
+    global config
 
-    load_json()
+    config = load_conf()
     
     #Critial required fields
     try:
@@ -145,7 +274,8 @@ def load_config():
         log_info(f"liveries_folder = '{liveries_folder}'",tag="SET CONFIG")
         
         #Aircrafts
-        aircrafts = config.get("aircrafts", {})
+        aircrafts = get_aircraft_preset_list()
+
         default_aircraft_id = config.get("default_aircraft_id") or (next(iter(aircrafts)) if aircrafts else None)
         if default_aircraft_id:
                 # Write default_aircraft_id back to config.json
@@ -423,6 +553,7 @@ def clean_up_operation(update = True, delete = True, echo = True):
         if echo:
             print(f"{os.path.basename(get_local_version_file(current_aircraft_id))} not updated, {os.path.basename(server_version_file)} file not deleted\n")
 
+
 def process_downloads(download_files, aircraft_id, update_callback=None):
     # Build our destination folder to use the current_aircraft id for its subfolder
     destination_folder = os.path.normpath(os.path.join(liveries_folder, aircrafts[aircraft_id]["folder"]))
@@ -550,6 +681,64 @@ def filter_existing_folders(delete_folders, aircraft_id):
         log_info(f"Folder is not found on system, removing from queue: '{folder}'", tag="FILE HANDLING")
 
     return valid_folders
+
+
+def get_aircraft_preset_list():
+    """
+    Build a list of aircraft preset's based on the imported presets list in the main config file.
+    Configs are imported to main.config['aircrafts']
+    Returns a dict of dicts with id, name, folder, remote_folder, valid
+    """
+    aircrafts = {}
+
+    for preset_id, preset_path in config.get("aircrafts", {}).items():
+        data = {
+            "id": preset_id,
+            "name": "Invalid Preset",
+            "folder": None,
+            "remote_subfolder": None,
+            "date_created": None,
+            "read_only": False,
+            "valid": False
+        }
+
+        #attempt preset reading
+        try:
+            preset_conf = load_conf(preset_path)
+        except Exception:
+            aircrafts[preset_id] = data
+            continue
+
+        # validate structure
+        if not isinstance(preset_conf, dict) or len(preset_conf) != 1:
+            aircrafts[preset_id] = data
+            continue
+
+        file_id, contents = next(iter(preset_conf.items()))
+        if file_id != preset_id or not isinstance(contents, dict):
+            aircrafts[preset_id] = data
+            continue
+
+        # validate required keys
+        name = contents.get("name")
+        folder = contents.get("folder")
+        if not name or not folder:
+            aircrafts[preset_id] = data
+            continue
+
+        # build a valid entry
+        data.update({
+            "name": name,
+            "folder": folder,
+            "remote_subfolder": contents.get("remote_subfolder", None),
+            "read_only": bool(contents.get("read_only", False)),
+            "date_created": contents.get("date_created"),
+            "valid": True
+        })
+
+        aircrafts[preset_id] = data
+
+    return aircrafts
 
 
 def get_aircraft_info(aircraft_id):
@@ -801,16 +990,54 @@ def delete_manifest_files(aircraft_id: str):
         except Exception as e:
             log_error(f"Failed to delete {file_path}: {e}")
           
-    
 
-### ATOMIZED UNZIP AND TRACKING OF FILES // PSEUDO CODE
-# def install_package(zip_path, dest_folder, manifest, package_id):
-#     files = extract_with_manifest(zip_path, dest_folder)
-#     manifest["installed_packages"][package_id] = {
-#         "installed_at": datetime.now().isoformat(),
-#         "files": files
-#     }
-#     save_manifest(manifest)
+def delete_preset(preset_id):
+    """
+    Remove a preset from main.config, and delete its file of present.
+    """
+    # config = load_conf(config_file)
+    # Remove preset file if it exists
+    preset_path = config["aircrafts"].get(preset_id)
+    if preset_path:
+        full_path = os.path.join(base_dir, preset_path)
+        try:
+            if os.path.exists(full_path):
+                os.remove(full_path)
+                log_info(f"Deleted preset file: {full_path}")
+        except Exception as e:
+            log_warn(f"Failed to delete preset file {full_path}: {e}")
+    
+    # Remove preset entry from config
+    if preset_id in config["aircrafts"]:
+        del config["aircrafts"][preset_id]
+        log_info(f"Removed preset '{preset_id}' from config.")
+
+    # if preset_id == config["default_aircraft_id"]:
+    #     config["default_aircraft_id"] = None
+    
+    # Save updated config file
+    save_conf(config_file, config)
+
+def import_preset(preset_id, preset_path):
+    """
+    Add a new preset to main.config and save the updated configuration file
+    """
+
+    if not os.path.exists(preset_path):
+        raise FileNotFoundError(f"Preset file not found: {preset_path}")
+    
+    rel_path = os.path.relpath(preset_path, base_dir).replace("\\", "/")
+    config["aircrafts"][preset_id] = rel_path
+    log_info(f"Imported preset '{preset_id}' at {rel_path}")
+    save_conf(config_file, config)
+
+def reload_config():
+    """
+    Updates the global config in memory
+    """
+    global config
+    config = load_conf(config_file)
+
 
 # Register shutdown to always run at exit
 atexit.register(shutdown)

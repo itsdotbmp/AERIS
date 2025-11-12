@@ -141,9 +141,16 @@ def show_popup(stdscr, message_lines, msg_type="info"):
     curses.curs_set(0)
     max_y, max_x = stdscr.getmaxyx()
 
+    # Wrap text lines
+    max_width = max_x - 4
+    wrapped_lines = []
+    for line in message_lines:
+        wrapped_lines.extend(textwrap.wrap(line, max_width))
+
     # Popup size and position
-    width = max(len(line) for line in message_lines) + 4
-    height = len(message_lines) + 4
+    width = min(max(len(line) for line in wrapped_lines) + 4, max_x - 4)
+    height = min(len(wrapped_lines) + 4, max_y - 4)
+
     start_y = max((max_y - height) // 2, 0)
     start_x = max((max_x - width) // 2, 0)
 
@@ -163,8 +170,8 @@ def show_popup(stdscr, message_lines, msg_type="info"):
     win.box()
 
     # Text lines
-    for idx, line in enumerate(message_lines):
-        win.addstr(2 + idx, 2, line[:width - 4], attr)
+    for idx, line in enumerate(wrapped_lines[:height-4]): # stops height overflow
+        win.addstr(2 + idx, 2, line.ljust(width-4), attr)
 
     # Footer hint
     hint = "Press any key to continue"
