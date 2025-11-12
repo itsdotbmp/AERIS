@@ -31,3 +31,4 @@ livery*.log
 *_version.txt
 config.json
 manifest
+presets/*
