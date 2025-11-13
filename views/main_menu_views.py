@@ -45,6 +45,7 @@ def main_menu(stdscr):
 
     curses.curs_set(0)
     stdscr.clear()
+    max_y, max_x = stdscr.getmaxyx()
 
     ui.show_title(stdscr)
     ui.draw_disclaimer(stdscr)
@@ -58,6 +59,7 @@ def main_menu(stdscr):
         ]
         ui.show_popup(stdscr, message_lines, msg_type="error")
 
+    update_available = main.is_update_available(main.software_version)
     
     if current_aircraft_id:
         current_aircraft_data = main.get_aircraft_info(current_aircraft_id)
@@ -75,7 +77,10 @@ def main_menu(stdscr):
     stdscr.addstr(y, 2, current_preset_path, curses.A_DIM)
     y += 4
     
-
+    if update_available:
+        update_message = f"  A newer version of AERIS is available! Check github releases.  "
+        centered_message = (max_x - len(update_message)) // 2
+        stdscr.addstr(max_y - 3, centered_message, update_message,  curses.color_pair(ui.COLOR_PAIRS["info window"]))
     current_index = 0
     selections = ["Choose Preset", "Config", "Start Update", "Quit"]
     while True:
