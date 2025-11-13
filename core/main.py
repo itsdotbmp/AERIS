@@ -15,6 +15,7 @@ import traceback
 from core import manifest_db as manifest
 import yaml
 from collections import OrderedDict
+import re
 
 
 software_version = "0.0.2"
@@ -1039,6 +1040,22 @@ def reload_config():
     global config
     config = load_conf(config_file)
 
+
+def is_update_available(current_version: str) -> bool:
+    """Check if a newer version exists in the latest_version.txt file."""
+    url = "https://raw.githubusercontent.com/itsdotbmp/AERIS/refs/heads/master/main/current_release.txt"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            latest_version = response.read().decode("utf-8").strip()
+        # Compare version tuples
+        def parse_ver(v):
+            return tuple(int(x) for x in v.split('.'))
+        log_info(f"Current Version is {current_version}, current release is {latest_version}")
+        return parse_ver(latest_version) > parse_ver(current_version)
+    except Exception as e:
+        # If network fails or file is missing, treat as no update
+        log_error(f"Unable to get current release, Current version {current_version}: {e}")
+        return False
 
 # Register shutdown to always run at exit
 atexit.register(shutdown)
