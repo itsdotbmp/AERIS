@@ -149,8 +149,7 @@ def show_popup(stdscr, message_lines, msg_type="info"):
 
     # Popup size and position
     width = min(max(len(line) for line in wrapped_lines) + 4, max_x - 4)
-    height = min(len(wrapped_lines) + 4, max_y - 4)
-
+    height = min(len(wrapped_lines) + 5, max_x - 4)
     start_y = max((max_y - height) // 2, 0)
     start_x = max((max_x - width) // 2, 0)
 
@@ -159,42 +158,53 @@ def show_popup(stdscr, message_lines, msg_type="info"):
     else:
         attr = curses.color_pair(COLOR_PAIRS["info window"])
 
-    # --- Draw shadow (optional, subtle depth effect) ---
+    # --- Shadow ---
     shadow = curses.newwin(height, width, start_y + 1, start_x + 2)
     shadow.bkgd(" ", curses.color_pair(COLOR_PAIRS["window shadow"]))
     shadow.refresh()
 
-    # --- Popup window itself ---
+    # --- Popup window ---
     win = curses.newwin(height, width, start_y, start_x)
     win.bkgd(" ", attr)
     win.box()
 
-    # Text lines
-    for idx, line in enumerate(wrapped_lines[:height-4]): # stops height overflow
+    # Message
+    for idx, line in enumerate(wrapped_lines[:height-4]):
         win.addstr(2 + idx, 2, line.ljust(width-4), attr)
 
     # Footer hint
-    hint = "Press any key to continue"
+    if msg_type == "confirm":
+        hint = "Press Y to confirm, N to cancel"
+    else:
+        hint = "Press any key to continue"
     hint_x = (width - len(hint)) // 2
     win.addstr(height - 2, hint_x, hint, attr | curses.A_BOLD)
 
-    # Draw popup on top of whatever is already rendered
     win.refresh()
 
-    # Wait for key press in popup context
-    win.getch()
+    # Wait for key press
+    if msg_type == "confirm":
+        while True:
+            key = win.getch()
+            if key in (ord("y"), ord("Y")):
+                result = True
+                break
+            elif key in (ord("n"), ord("N")):
+                result = False
+                break
+    else:
+        win.getch()
+        result = None
 
-    # Clear the popup only — do not clear stdscr
+    # Clear popup and shadow
     win.clear()
     win.refresh()
-
-    # Erase the shadow
     shadow.clear()
     shadow.refresh()
 
-    # Tell curses to redraw the base screen below popup
     stdscr.touchwin()
     stdscr.refresh()
+    return result
 
 
 
@@ -380,7 +390,7 @@ def is_delete(key):
     if ui.is_delete(key):
         return 'delete'
     """
-    return key in (ord("d"),ord("D"))
+    return key in (ord("d"),ord("D"), curses.KEY_DC)
 
 def handle_scroll(key, pos, max_pos):
     """

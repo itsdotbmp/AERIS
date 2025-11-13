@@ -14,6 +14,7 @@ from urllib.error import HTTPError, URLError, ContentTooShortError
 import traceback
 from core import manifest_db as manifest
 import yaml
+from collections import OrderedDict
 
 
 software_version = "0.0.2"
@@ -691,7 +692,7 @@ def get_aircraft_preset_list():
     """
     aircrafts = {}
 
-    for preset_id, preset_path in config.get("aircrafts", {}).items():
+    for preset_id, preset_path in sorted(config.get("aircrafts", {}).items()):
         data = {
             "id": preset_id,
             "name": "Invalid Preset",
@@ -738,7 +739,7 @@ def get_aircraft_preset_list():
 
         aircrafts[preset_id] = data
 
-    return aircrafts
+    return OrderedDict(sorted(aircrafts.items()))
 
 
 def get_aircraft_info(aircraft_id):

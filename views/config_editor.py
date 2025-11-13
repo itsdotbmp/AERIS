@@ -22,10 +22,8 @@ def config_summary_view(stdscr, config):
         {"y": 4, "x": 2, "label": "Program Configuration", "hint": "", "value": "", "can_edit": False},
         {"y": 5, "x": 3, "label": "Server URL", "hint": "Enter the full URL to your server",  "value": config["program"]["server_url"], "can_edit": True, "edit_type": "text", "validator": validate_url},
         {"y": 6, "x": 3, "label": "Liveries Folder", "hint": "Enter the folder path to your liveries folder. Use '/' instead of '\\' in the path.", "value": config["environment"]["liveries_folder"], "can_edit": True, "edit_type": "text", "validator": validate_filepath},
-        {"y": 7, "x": 3, "label": "Default Preset", "hint": "", "value": config["default_aircraft_id"], "can_edit": True, "edit_type": "text", "validator": None},
-        {"y": 9, "x": 2, "label": "Aircraft Presets", "hint": "", "value": "Add/Edit Presets", "can_edit": True, "edit_type": "presets", "validator": None},
-        {"y": 12, "x": 1, "label": "", "hint": "", "value": "Save Changes", "can_edit" : True, "edit_type": "save", "validator": None},
-        {"y": 13, "x": 1, "label": "", "hint": "", "value": "Discard Changes", "can_edit" : True, "edit_type": "cancel", "validator": None}
+        {"y": 7, "x": 3, "label": "Default Preset", "hint": "", "value": config["default_aircraft_id"], "can_edit": True, "edit_type": "select", "validator": None},
+        {"y": 9, "x": 2, "label": "Aircraft Presets", "hint": "", "value": "Add/Edit Presets", "can_edit": True, "edit_type": "presets", "validator": None}
     ]
     editable_indices = [i for i, line in enumerate(ri) if line.get("can_edit", False)]
     attrs = {
@@ -66,35 +64,23 @@ def config_summary_view(stdscr, config):
             }
             while True:
                 edit_type = current_field.get("edit_type")
+                
                 if edit_type == "text":
                     edit_field = popup(stdscr, popup_data)
                     if edit_field is None:
                         break # cancelled
-                    
+                
+                elif edit_type == "select":
+                    edit_field = select_default_aircraft_popup(stdscr, current_field["value"], main.get_aircraft_preset_list())
+                    stdscr.refresh()
+                    if edit_field is None:
+                        break # cancelled    
+                
                 elif edit_type == "presets":
                     return "presets"
-                    # preset_editor_screen(stdscr)
-                    # stdscr.clear()
-                    # stdscr.refresh()
-                    # ui.show_title(stdscr)
-                    # ui.draw_disclaimer(stdscr)
-                    # break
                 elif edit_type == "cancel":
                     return
-                elif edit_type == "save":
-                    # merge updated values from ri back into config
-                    for line in ri:
-                        if line.get("edit_type") in ("text", "select"):
-                            label = line["label"]
-                            val = line["value"]
-                            if label == "Server URL":
-                                config["program"]["server_url"] = val
-                            elif label == "Liveries Folder":
-                                config["environment"]["liveries_folder"] = val
-                            elif label == "Default Preset":
-                                config["default_aircraft_id"] = val
-                    main.save_conf(main.config_file, config)
-                    break
+                
                 validator = current_field.get("validator")
                 if validator:
                     ok, msg = validator(edit_field)
@@ -103,10 +89,21 @@ def config_summary_view(stdscr, config):
                         break  # validation succeeded, exit retry loop
                     else:
                         popup_data["hint"] = current_field['hint'] + "\n" + msg
-                else:
-                    ri[current_index]['value'] = edit_field
-                    break # no validator, accept value
+                
+                ri[current_index]['value'] = edit_field
 
+                label = current_field["label"]
+                val = edit_field
+                if label == "Server URL":
+                    config["program"]["server_url"] = val
+                elif label == "Liveries Folder":
+                    config["environment"]["liveries_folder"] = val
+                elif label == "Default Preset":
+                    config["default_aircraft_id"] = val
+                            
+                main.save_conf(main.config_file, config)
+                break
+                
         current_selected_index = ui.handle_scroll(key, current_selected_index, len(editable_indices) - 1)
         
       
@@ -169,7 +166,130 @@ def popup(stdscr, popup_data):
         stdscr.touchwin()
         stdscr.refresh()
         return None # caller ignore changes
+
+
+def select_default_aircraft_popup(stdscr, current_id, aircrafts_dict):
+    """
+    Popup to select a default aircraft preset.
     
+    Returns selected preset id or None if cancelled.
+    """
+    max_y, max_x = stdscr.getmaxyx()
+    selected_idx = 0
+    pad_visible = 6
+    popup_width = max_x - 8
+    popup_height = 3 + pad_visible + 5
+    start_y = (max_y - popup_height) // 2
+    start_x = (max_x - popup_width) // 2
+    popup_win = curses.newwin(popup_height, popup_width, start_y, start_x)
+    popup_win.bkgd(' ', curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
+    popup_win.box()
+    popup_win.keypad(True)
+
+    # define pad
+    pad_height = max(len(aircrafts_dict.items()), pad_visible)
+    pad_width = popup_width - 3
+    pad = curses.newpad(pad_height, pad_width)
+    pad.bkgd(' ', curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
+    
+
+
+    popup_win.addstr(1, 2, "Select Default Preset", curses.A_BOLD)
+    popup_win.addstr(2, 2, f"This preset is loaded by default when the program starts.")
+    popup_win.addch(3, 0, curses.ACS_LTEE)
+    popup_win.hline(3, 1, curses.ACS_HLINE, popup_width - 2)
+    popup_win.addch(3, popup_width - 1, curses.ACS_RTEE)
+    
+    # pad renders here
+    pad_view_top = start_y + 4
+    pad_view_bottom = pad_view_top + pad_visible - 1
+    pad_view_left = start_x + 1
+    pad_view_right = start_x + popup_width - 3
+    pad_pos_y = 0
+
+    popup_win.addch(popup_height - 4, 0, curses.ACS_LTEE)
+    popup_win.hline(popup_height - 4, 1, curses.ACS_HLINE, popup_width - 2)
+    popup_win.addch(popup_height - 4, popup_width - 1, curses.ACS_RTEE)
+
+    labels = [ui.ENTER_PROMPT, ui.ESC_PROMPT]
+    positions = ui.centered_buttons_x(popup_width, *labels)
+    for label, pos_x in zip(labels, positions):
+        ui.draw_pseudo_button(popup_win, popup_height - 2, pos_x, label)
+    
+    while True:
+        # erase pad to remove old highlights
+        pad.erase()
+
+        # draw pad content
+        for idx, (id, data) in enumerate(aircrafts_dict.items()):
+            name = data.get("name")
+            line = f" {id:<15} {name}"
+            attr = curses.A_NORMAL
+            if id == current_id:
+                attr |= curses.A_BOLD
+            if idx == selected_idx:
+                attr |= curses.A_REVERSE
+            pad.addstr(idx, 0, line.ljust(pad_width - 1), attr)
+
+        ui.draw_scroll_hint(popup_win, popup_height - 4, popup_width)
+
+        # draw scrollbar and scroll hint
+        ui.draw_pad_scrollbar(
+            popup_win,
+            pad_y = pad_pos_y,
+            pad_height = pad_height,
+            pad_height_visible = pad_visible,
+            pad_top = 4,
+            pad_bottom = 3 + pad_visible,
+            pad_width = popup_width - 2
+        )
+
+        # draw popup window first
+        popup_win.noutrefresh()  
+
+        
+
+        # render pad
+        pad.noutrefresh(
+            pad_pos_y, 0,
+            pad_view_top, pad_view_left,
+            pad_view_bottom, pad_view_right
+        )
+        
+        curses.doupdate()  # push everything to screen
+
+        key = popup_win.getch()
+
+        # update selected index
+        if key in (curses.KEY_UP, ord('k')):
+            if selected_idx > 0:
+                selected_idx -= 1
+        elif key in (curses.KEY_DOWN, ord('j')):
+            if selected_idx < len(aircrafts_dict) - 1:
+                selected_idx += 1
+
+        # adjust pad_pos_y only if selected line is out of view
+        if selected_idx < pad_pos_y:
+            pad_pos_y = selected_idx
+        elif selected_idx >= pad_pos_y + pad_visible:
+            pad_pos_y = selected_idx - pad_visible + 1
+
+        # handle accept/cancel
+        if ui.is_accept(key):
+            result = list(aircrafts_dict.keys())[selected_idx]
+            break
+        if ui.is_cancel(key):
+            result = None
+            break
+
+    popup_win.clear()
+    popup_win.refresh()
+    del popup_win
+    stdscr.touchwin()
+    stdscr.refresh()
+    return result
+
+
       
 def preset_editor_screen(stdscr):
     main.reload_config()
@@ -205,7 +325,7 @@ def preset_editor_screen(stdscr):
     # Line renders below pad
     stdscr.hline(_y, 2, curses.ACS_HLINE, max_x - 4)
 
-    labels = ["[A]dd Preset", "(E)dit preset", "(I)mport preset", ui.QUIT_PROMPT]
+    labels = ["[A]dd New", "(E)dit", "(I)mport", "(D)elete", ui.QUIT_PROMPT]
     positions = ui.centered_buttons_x(max_x, *labels)
     for label, pos_x in zip(labels, positions):
         ui.draw_pseudo_button(stdscr, _y + 5, pos_x, label)
@@ -284,9 +404,14 @@ def preset_editor_screen(stdscr):
             return "edit", (selected_id, preset_data)
         if key in (ord("d"),ord("D")): # delete preset
             selected_id = list(aircraft_presets_dict.keys())[pad_cursor_y]
-            main.delete_preset(selected_id)
-            main.load_config()
-            curses.doupdate()
+            confirm = ui.show_popup(stdscr, [f"Are you sure you want to delete preset '{selected_id}'?"], msg_type="confirm")
+            if confirm:
+                main.delete_preset(selected_id)
+                main.reload_config()
+                aircraft_presets_dict = main.get_aircraft_preset_list()  # refresh data
+                pad_height = max(pad_view_height, len(aircraft_presets_dict) + 1)
+                if pad_cursor_y >= len(aircraft_presets_dict):
+                    pad_cursor_y = max(0, len(aircraft_presets_dict) - 1)
                 
 
 def preset_edit_view(stdscr, preset_data, is_new=False):
@@ -411,7 +536,7 @@ def preset_edit_view(stdscr, preset_data, is_new=False):
                     new_rel_file = f"presets/{new_id}.set"
                     new_path = os.path.join(main.base_dir, new_rel_file)
 
-                    ok, msg = validate_remote_versions(updated)
+                    ok, msg = validate_remote_versions(updated, new_id)
                     if not ok and not override_save:
                         fields[6]["value"] = (
                             "Error reaching the remote_subfolder versions.\n"
@@ -470,7 +595,7 @@ def preset_edit_view(stdscr, preset_data, is_new=False):
         current_selected_index = ui.handle_scroll(key, current_selected_index, len(editable_indices) - 1)
 
 
-def import_presets_view(stdscr):
+def import_presets_view(stdscr, candidates):
     # Discover presets in /presets folder
     # filter out ones already in config["aircrafts"]
     # Display selection list
@@ -478,8 +603,130 @@ def import_presets_view(stdscr):
     # press A to accept and import all selected
     # Escape or Q to quit.
 
-    presets_dir = None
-    pass
+    placeholder = "No valid presets found in the presets folder that are not already in your aircraft presets list."
+    
+    curses.curs_set(0)    # hide cursor
+    stdscr.clear()
+    stdscr.move(0, 0)
+    max_y, max_x = stdscr.getmaxyx()
+
+    ui.show_title(stdscr)
+    ui.draw_disclaimer(stdscr)
+
+    y = 4
+    stdscr.addstr(y, 2, "Import Candidate Presets", curses.A_BOLD)
+    y += 1
+    stdscr.hline(y, 2, curses.ACS_HLINE, max_x - 4)
+
+
+    stdscr.hline(max_y - 6, 2, curses.ACS_HLINE, max_x - 4)
+    stdscr.addstr(max_y - 5, 2, f"Select the presets you wish to import", curses.A_DIM)
+
+    labels = ["[A]ccept", "[M]ark/Unmark", "[DEL] Clear", ui.CANCEL_PROMPT]
+    positions = ui.centered_buttons_x(max_x, *labels)
+    for label, pos_x in zip(labels, positions):
+        ui.draw_pseudo_button(stdscr, max_y - 2, pos_x, label)
+
+    if not candidates:
+        y += 1
+        placeholder_lines = textwrap.wrap(placeholder, max_x - 7)
+        for j, placeholder_line in enumerate(placeholder_lines):
+            y_pos = y + j
+            if y_pos < max_y - 1:
+                stdscr.addstr(y_pos, 3, placeholder_line)
+        stdscr.refresh()
+        
+        # Wait for a keypress to exit view
+        stdscr.getch()
+        return "quit",  ""
+
+    pad_view_top = y + 1
+    pad_view_bottom = max_y - 7
+    pad_view_left = 2
+    pad_view_right = max_x - 3
+    pad_view_height = pad_view_bottom - pad_view_top + 1
+    pad_height = max(pad_view_height, len(candidates))
+    pad_width = max_x - 5
+
+    pad = curses.newpad(pad_height, pad_width)
+    pad.bkgd(" ", curses.color_pair(ui.COLOR_PAIRS["dark amber"]))
+
+    pad_pos_y = 0
+    pad_cursor_y = 0
+    selected_ids = set() # stores preset ids for import
+    while True:
+        pad.erase()
+        
+        for idx, candidate in enumerate(candidates):
+            # highlight current row
+            attr = curses.A_REVERSE if idx == pad_cursor_y else curses.A_NORMAL
+
+            # show a selection marker
+            if candidate['id'] in selected_ids:
+                mark = "[X] "
+                attr2 = curses.A_BOLD
+            
+            else:
+                mark = "[ ] "
+                attr2 = curses.A_DIM
+
+            line = f"{mark}{candidate['id']:<15} '{candidate['name']}'"
+            display_line = line[:pad_width-1]
+            pad.addstr(idx, 1, display_line, attr | attr2)
+
+        scroll_height = max(len(candidates) - 1, 0)
+        if scroll_height > pad_view_height:
+            ui.draw_scroll_hint(stdscr, pad_view_bottom + 1, max_x)
+
+        ui.draw_pad_scrollbar(
+            stdscr,
+            pad_pos_y,
+            pad_height,
+            scroll_height,
+            pad_view_top,
+            pad_view_bottom,
+            pad_view_right
+        )
+
+        stdscr.noutrefresh()
+        pad.noutrefresh(pad_pos_y, 0, pad_view_top, pad_view_left, pad_view_bottom, pad_view_right)
+        curses.doupdate()
+
+        key = stdscr.getch()
+        if ui.is_cancel(key):
+            return "quit", ""
+        try:
+            ui.is_quit(key)
+        except ui.QuitFlow:
+            return "quit", ""
+        
+        # mark for import
+        if key in (ord("m"), ord("M"), ord(" ")):
+            current_id = candidates[pad_cursor_y]['id']
+            if current_id in selected_ids:
+                selected_ids.remove(current_id) #unmark
+            else:
+                selected_ids.add(current_id) #mark
+        if ui.is_delete(key):
+            selected_ids.clear()
+            continue  # refresh the pad with nothing marked
+        if ui.is_accept(key):
+            if selected_ids:
+                # return a list of the marked candidate dicts
+                marked_candidates = {
+                    c['id']: c['path']
+                    for c in candidates
+                    if c['id'] in selected_ids
+                }
+                return "import", marked_candidates
+        pad_cursor_y = ui.handle_scroll(key, pad_cursor_y, scroll_height)
+        if pad_cursor_y < pad_pos_y:
+            pad_pos_y = pad_cursor_y
+        elif pad_cursor_y >= pad_pos_y + pad_view_height:
+            pad_pos_y = pad_cursor_y - pad_view_height + 1
+
+        
+    
 
 def validate_url(url: str) -> bool:
     """
@@ -544,7 +791,7 @@ def validate_child_folder(path):
     return True, ""
 
 
-def validate_remote_versions(updated: dict):
+def validate_remote_versions(updated: dict, new_id):
     """
     Validate that our remote subfolder points to a valid version file
     allows override
@@ -552,7 +799,7 @@ def validate_remote_versions(updated: dict):
     returns False, message if failure
     can save again if failed to overwrite.
     """
-    preset_id = updated.get("id")
+    preset_id = new_id
     remote_subfolder = updated.get("remote_subfolder", "") or ""
     server_url = main.server_url
     
@@ -563,7 +810,7 @@ def validate_remote_versions(updated: dict):
         base_url = f"{server_url}/{remote_subfolder.lstrip('/').rstrip('/')}/"
 
     # construct version file url
-    version_file_name = main.config["program"]["version_filename"]
+    version_file_name = main.version_filename
     full_version_file = f"{preset_id}_{version_file_name}"
     full_url = f"{base_url}{full_version_file}"
 
