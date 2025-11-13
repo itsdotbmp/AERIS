@@ -1,5 +1,1 @@
-<<<<<<< HEAD
 0.0.2
-=======
-0.0.2
->>>>>>> feature-auto_update_check
