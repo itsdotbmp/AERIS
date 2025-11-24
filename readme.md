@@ -19,77 +19,55 @@ Instead of redownloading massive archives, users receive only the changed files,
 ```
 AERIS/
 └─ AERIS.exe
-````
+```
 
-This allows the program to create required configuration and data files around it.
+The program will create required configuration and data files around it.
 
-3. Launch the program once. This will create the default configuration files.
-
-Once you have the config files, you are ready to set up your first preset.
+3. Launch the program once. You will be prompted to either **create a new configuration** or **import an existing one**.
 
 ## Configuration
 
-The program requires a `config.json` file. The first time you run AERIS, a default (mostly empty) config file is created. You must fill in a few critical fields.
+*Configuration is now handled entirely inside the application. The program no longer requires editing a JSON file manually.*
 
-1. **server_url** - the location of your livery server:
-```json
-"server_url": "https://example.com/folder"
-````
+1. **DCS Liveries Folder** – The program will ask for the path to your DCS Saved Games liveries folder. You can type it in directly or paste it.
 
-Trailing commas are critical in JSON. Missing or extra commas will break the program.
+2. **Aircraft Presets** – You can either:
 
-2. **liveries_folder** - the path to your DCS liveries folder:
-```json
-"liveries_folder": "C:/Saved Games/DCS/Liveries"
-```
+   * Create a new preset using the built-in editor.
+   * Import an existing preset file (`*.set`) via the import screen. Most often, your squadron or group will provide a preset.
 
-Use forward slashes `/`. Backslashes `\` will cause errors.
+   **Import instructions:**
 
-3. **Aircraft Presets** - define each aircraft and distribution preset. Example:
+   * Place the preset file into the `presets` folder once it exists.
+   * Use the import screen to select your preset (mark with **M**, accept with **A**).
+   * After importing, you can set it as the default preset for the program.
 
-```json
-"aircrafts": {
-    "aeris_example_f4e": {
-        "name": "AERIS F-4E Phantom II",
-        "folder": "f-4e-45mc",
-        "remote_subfolder": null
-    },
-    "aeris_example_f-16c": {
-        "name": "AERIS F-16C Fighting Falcon",
-        "folder": "f-16c",
-        "remote_subfolder": "f-16"
-    }
-}
-```
+3. Once your preset is set, press **Q** to return to the main menu.
 
-* `"folder"` is the destination folder inside your `liveries_folder`.
-* `"remote_subfolder"` is optional; use it if this preset pulls from a different server location.
-
-After editing, completely quit and restart AERIS for changes to take effect.
 
 ## Using AERIS
 
 1. Launch AERIS.
 2. If multiple presets exist, choose one via the Choose Preset menu. The main menu shows the currently selected preset and target folder.
 3. Navigate the menu with the arrow keys (↑↓). Select options with **Enter** or **A**.
-4. To update liveries:
+4. To set a default preset, go to the **Config** menu and select the preset you want as default.
+5. To update liveries:
    * Highlight **Start Update** and confirm.
    * A summary of changes appears. Accept to start or cancel to stop.
    * If files will be deleted, the program prompts before removing them. You can choose to keep them.
 
-5. During the update:
+6. During the update:
    * Downloads occur first, then zip files are unpacked into the correct folders.
    * Progress is shown on screen.
 
-6. When finished, a summary screen shows any errors or actions taken. You may continue from this screen.
+7. When finished, a summary screen shows any errors or actions taken. You may continue from this screen.
 
 Your liveries are now updated.
 
 ## Troubleshooting
 
-* JSON Errors: Extra or missing commas or using `\` instead of `/` will prevent AERIS from starting. Check your config carefully.
-* Permissions: Make sure the folder containing AERIS and your liveries folder are writable.
-* Presets: Restart AERIS after editing `config.json` to apply changes.
+* **Permissions:** Make sure the folder containing AERIS and your liveries folder are writable.
+* **Config issues:** Because the config file format changed significantly, it is recommended to delete your old config file before running this version. The program will create a new one automatically.
 
 ---
 

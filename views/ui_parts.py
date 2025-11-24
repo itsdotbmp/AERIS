@@ -308,6 +308,7 @@ QUIT_PROMPT = "[Q]uit"
 DELETE_PROMPT = "[D]elete"
 ENTER_PROMPT = "[ENTER]"
 ESC_PROMPT = "[ESC]"
+BACK_PROMPT = "[B]ack"
 
 # Standard spacing between buttons
 BUTTON_SPACING = 8
@@ -379,6 +380,13 @@ def is_cancel(key):
         return False
     """
     return key in (ord("c"),ord("C"))
+
+def is_back(key):
+    """
+    if ui.is_back(key):
+        return
+    """
+    return key in (ord("b"),ord("B"))
 
 def is_no(key):
     return key in (ord("n"), ord("N"))

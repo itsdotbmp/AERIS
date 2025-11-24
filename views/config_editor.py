@@ -20,7 +20,7 @@ def config_summary_view(stdscr, config):
 
     
 
-    labels = [ui.ACCEPT_PROMPT, ui.CANCEL_PROMPT]
+    labels = [ui.ACCEPT_PROMPT, ui.BACK_PROMPT]
     positions = ui.centered_buttons_x(max_x, *labels)
     for label, pos_x in zip(labels, positions):
         ui.draw_pseudo_button(stdscr, max_y - 3, pos_x, label)    
@@ -65,7 +65,7 @@ def config_summary_view(stdscr, config):
         
 
         key = stdscr.getch()
-        if ui.is_cancel(key):
+        if ui.is_cancel(key) or ui.is_back(key):
             return
         try:
             ui.is_quit(key)
@@ -856,7 +856,7 @@ def _first_time_config_system(stdscr):
   These settings control how AERIS behaves on your system.
   - The Liveries folder must point to your DCS Saved Games liveries directory.
   - The Default Preset is the one AERIS loads at startup.
-  - Press ESC or (C)ancel to return to the main menu.
+  - Press ESC or (b)ack to return to the main menu.
 """
     stdscr.addstr(max_y - 11, 2, instructions)
     

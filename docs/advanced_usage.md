@@ -33,7 +33,7 @@ This guide is intended for repository maintainers and advanced users who want to
 ## Version File Format
 
 1. **Naming**
-   The version file must be prefixed with the preset ID as configured in the user’s `config.json`.
+   The version file must be prefixed with the preset ID as configured in the preset.
    Example: `aeris-f4e_version.txt` where `aeris-f4e` is the preset ID.
 
 2. **User-Facing Information**
@@ -124,30 +124,40 @@ Files are extracted into the folder in the zip.
 
 Multiple liveries in a single zip or multiple top-level folders within a repository are discouraged. If unavoidable, AERIS will wrap them in a folder named after the zip, but predictable behavior is not guaranteed.
 
-## Multiple Presets and Multi-Repo Management
+# Presets and Multi-Repo Management
 
-AERIS supports multiple presets per user. Each preset should have a unique preset ID and its own version file.
+AERIS uses a `/presets` folder and `*.set` files to manage presets. Multiple presets are supported in a clean, modular way.
 
-* Prefer separate folders per repository to minimize collisions.
-* If multiple repositories exist in subfolders, `remote_subfolder` must point to the correct folder for each preset in `config.json`.
+## Preset File Format
 
-Example preset JSON for users:
+Preset files are YAML by default (`*.set`), though JSON is also supported. Each preset file must be named after the preset ID it contains (e.g., `example_preset.set`). The first line/key is the preset ID.
 
-```json
-"aeris_f4e": {
-    "name": "F-4E Phantom II",
-    "folder": "f-4e-45mc",
-    "remote_subfolder": null
-},
-"aeris_f16": {
-    "name": "F-16C Fighting Falcon",
-    "folder": "f-16c",
-    "remote_subfolder": "aeris_f16"
-}
+Example `example_preset.set` content:
+```YAML
+example_preset:
+  preset_version: 2
+  name: Example Preset
+  folder: example
+  remote_subfolder: https://86thvfw.com/aeris/example_preset/
+  date_created: '2025-11-18T01:46:50Z'
+  last_edited: '2025-11-18T01:47:51Z'
 ```
+### Field explanations:
+- **preset_version** - Indicates the version of the preset file. Not currently used but required.
+- **name** - Friendly name of the preset, shown in the UI.
+- **folder** - Target folder in the user's liveries folder (eg. `f-16c`, `f-4e-45mc`).
+- **remote_subfolder** - Absolute URL to the remote repository containing the version file and zip files. This folder must be flat relative to the version file.
+- **date_created** - Timestamp of when the preset file was first created.
+- **last_edited** - Timestamp of the most recent edit.
 
-* `"folder"`: target extraction folder in the user’s liveries folder
-* `"remote_subfolder"`: optional; set if repository is in a subfolder
+**Date Format**: ISO 8601 in UTC. Example: `'YYYY-MM-DDTHH:MM:SSZ'`
+- T separates the date and time.
+- Z indicates UTC time.
+
+## Creating Presets
+Presets can be created entirely inside the program via the config menu. You can also import preset files into the `/presets` folder. The program will recognize them and allow you to import them. Once imported, a preset can be set as default. 
+
+Presets can also created manually following the shown format. Make sure the preset imports correctly and displays correct in the program before distributing it.
 
 ## Best Practices
 
@@ -156,9 +166,11 @@ Example preset JSON for users:
 * Always update the version file before uploading new zips.
 * Test zip layouts locally before publishing.
 * Use clear naming conventions for zips and version files.
+* Ensure `remote_subfolder` points to a valid, flat URL structure for downloads.
 
 ## Troubleshooting
 
 * **Missing or incorrect filenames** in version files prevent updates. Check case sensitivity.
 * **Zip layout errors** may cause files to end up in unexpected folders. Follow recommended structure.
 * **Multiple repositories in one folder**: avoid collisions; using separate folders is strongly recommended.
+* **Invalid Presets** are usually caused by a mismatch of the id of the file and the filename, or invalid formatting inside of the `*.set` file.
