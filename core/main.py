@@ -18,7 +18,7 @@ from collections import OrderedDict
 import re
 
 
-software_version = "0.0.2"
+software_version = "1.1.0"
 current_aircraft_id = None 
 title = "86th vFW: AERIS"
 first_time = False
