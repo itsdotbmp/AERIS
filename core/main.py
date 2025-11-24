@@ -21,6 +21,7 @@ import re
 software_version = "0.0.2"
 current_aircraft_id = None 
 title = "86th vFW: AERIS"
+first_time = False
 ## FOR DOCUMENTATION: Program *must* be in a writable folder to function, so not program files.
 
 def generate_example_preset(path):
@@ -31,8 +32,8 @@ def generate_example_preset(path):
         "example_preset": {
             "preset_version": 2,
             "name": "Example Preset",
-            "folder": "example",
-            "remote_subfolder": None,
+            "folder": "aeris example",
+            "remote_subfolder": "https://86thvfw.com/aeris/example_preset/",
             "date_created": date_created
         }
     }
@@ -42,6 +43,7 @@ def generate_example_preset(path):
 def generate_config_boilerplate(path):
     boilerplate = {
         "config_version": 2,
+        "first_time": True,
         "program": {
             "server_url": None,
             "version_filename": "version.txt",
@@ -153,90 +155,7 @@ def custom_logging_namer(default_name):
     return default_name
 
 
-## IMPORT STARTS
-try:
-    base_dir =  get_base_dir()
 
-    yaml_path = os.path.join(base_dir, "config.yaml")
-    yaml_path_short = os.path.join(base_dir, "config.yml")
-    json_path = os.path.join(base_dir, "config.json")
-
-    if os.path.exists(yaml_path):
-        config_file = yaml_path
-    elif os.path.exists(yaml_path_short):
-        config_file = yaml_path_short
-    elif os.path.exists(json_path):
-        config_file = json_path
-    else:
-        # no config file found, create one
-        try:
-            generate_config_boilerplate(yaml_path)
-            config_file = yaml_path
-        except Exception as e_yaml:
-            logging.error(f"ERROR | main.py import | Failed to create YAML config: {e_yaml}, falling back to JSON")
-            generate_config_boilerplate(json_path)
-            config_file = json_path
-            
-    config = load_conf(config_file)
-    if config is None:
-        raise RuntimeError(f"Config file {config_file} is empty or invald")
-
-    ## LOGGING CONFIG ##
-    log_file_name = config["logging"].get("log_file_name", "liveries.log")
-    max_bytes = config["logging"].get("max_bytes", 500000)
-    backup_count = config["logging"].get("backup_count", 5)
-    # Log file path using our base_dir
-    log_file_path = os.path.join(base_dir, log_file_name)
-
-    ## LOGGING SETUP ##
-    logging_handler = RotatingFileHandler(
-        log_file_path,
-        maxBytes=max_bytes,
-        backupCount=backup_count
-    )
-    logging_handler.namer = custom_logging_namer
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(message)s",
-        handlers=[logging_handler]
-    )
-    manifest.init_db(base_dir)
-
-    try:
-        preset_dir = None
-        for entry in os.listdir(base_dir):
-            if entry.lower() == "presets" and os.path.isdir(os.path.join(base_dir, entry)):
-                preset_dir = os.path.join(base_dir, entry)
-                break
-        
-        created_presets_dir = False
-        if preset_dir is None:
-            preset_dir = os.path.join(base_dir, "presets")
-            os.makedirs(preset_dir, exist_ok=True)
-            logging.info(f"INFO PRESET | import main.py | Created presets folder at {preset_dir}")
-            created_presets_dir = True
-            
-            
-        if created_presets_dir:
-            try:
-                example_path = os.path.join(preset_dir, "example_preset.set")
-                generate_example_preset(example_path)
-                logging.info(f"INFO PRESET | import main.py | Created presets example at {example_path}")
-            except Exception as e_yaml:
-                logging.error(f"ERROR | main.py import | Failed to create YAML preset: {e_yaml}, falling back to JSON")
-                example_path = os.path.join(preset_dir, "example_preset.set")
-                generate_example_preset(example_path)
-                logging.info(f"INFO PRESET | import main.py | Created presets example at {example_path}")
-            
-    
-    except Exception as e:
-        logging.error(f"ERROR | import main.py | Failed to create presets folder: {e}")
-        raise
-    
-except Exception as e:
-    # if anything up to this point fails, crash - we can't continue
-    raise RuntimeError(f"Critical startup failure: {e}")
-## IMPORT ENDS
 
 
 def load_config():
@@ -253,24 +172,28 @@ def load_config():
     global default_aircraft_id
     global current_aircraft_id
     global config
+    global first_time
 
     config = load_conf()
+    first_time = bool(config.get("first_time", False))
     
     #Critial required fields
     try:
         version_filename = config["program"].get("version_filename") or "version.txt"
         log_info(f"version_filename='{version_filename}'",tag="SET CONFIG")
-        server_url = config["program"].get("server_url")
-        if not server_url:
-            log_error("server_url missing in config")
-            return False
-        server_url = server_url.rstrip("/")
-        log_info(f"server_url='{server_url}'",tag="SET CONFIG")
+        # server_url = config["program"].get("server_url")
+        # if not server_url:
+        #     first_time = True
+        #     log_error("server_url missing in config")
+        #     return False
+        # server_url = server_url.rstrip("/")
+        # log_info(f"server_url='{server_url}'",tag="SET CONFIG")
         server_version_file = os.path.join(base_dir, config["program"].get("server_version_file") or "server_version.txt")
         log_info(f"server_version_file='{server_version_file}'",tag="SET CONFIG")
 
         liveries_folder = config["environment"].get("liveries_folder")
         if not liveries_folder:
+            first_time = True
             log_error("liveries_folder missing; user must confirm in config editor")
             return False
         log_info(f"liveries_folder = '{liveries_folder}'",tag="SET CONFIG")
@@ -283,8 +206,7 @@ def load_config():
                 # Write default_aircraft_id back to config.json
                 config["default_aircraft_id"] = default_aircraft_id
                 try:
-                    with open(os.path.join(base_dir, "config.json"), "w") as f:
-                        json.dump(config, f, indent=4)
+                    save_conf(config_file, config)
                     log_info(f"default_aircraft_id not in config; wrote '{default_aircraft_id}' back to config.json", tag="SET CONFIG")
                 except Exception as e:
                     log_error(f"Failed to write default_aircraft_id to config.json: {e}")
@@ -296,7 +218,11 @@ def load_config():
         if current_aircraft_id is None or current_aircraft_id not in aircrafts:
             current_aircraft_id = default_aircraft_id
             log_info(f"current_aircraft_id was none or not in aircrafts, set to '{default_aircraft_id}'",tag="SET CONFIG")
+    
+        
         return True
+
+        
     
     except Exception as e:
         log_error(f"Critical config error: {e}")
@@ -370,10 +296,14 @@ def get_remote_livery_url(aircraft_id):
             return remote_subfolder.rstrip("/") + "/"
         else:
             # return relative path, appended to server_url
-            return f"{server_url}/{remote_subfolder.lstrip("/").rstrip("/")}/"
+            # return f"{server_url}/{remote_subfolder.lstrip("/").rstrip("/")}/"
+            log_error(f"Server URL is invalid")
+            raise ValueError(f"Server URL is invalid")
     else:
         # No subfolder given, return root server_url
-        return f"{server_url}/"
+        # return f"{server_url}/"
+        log_error(f"Server URL is invalid")
+        raise ValueError(f"Server URL is invalid")
     
 
 # Same as local version, grabs the correct URL and file name for each aircraft type
@@ -1047,15 +977,121 @@ def is_update_available(current_version: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             latest_version = response.read().decode("utf-8").strip()
-        # Compare version tuples
-        def parse_ver(v):
-            return tuple(int(x) for x in v.split('.'))
-        log_info(f"Current Version is {current_version}, current release is {latest_version}")
-        return parse_ver(latest_version) > parse_ver(current_version)
+            latest_version = latest_version.strip().splitlines()[0]
+
+        log_info(f"Current Version is {current_version}, latest release is {latest_version}")
+        
+        # Converts 'release-5.1.2' to (5, 1, 2)
+        current_version = current_version.lower()
+        latest_version = latest_version.lower()
+        current_version = current_version.split(".")
+        latest_version = latest_version.split(".")
+        # Converts to integers, missing part defaults to 0
+        current_version_tuple = tuple(int(p) for p in current_version + ["0"]*(3-len(current_version)))
+        latest_version_tuple = tuple(int(p) for p in latest_version + ["0"]*(3-len(latest_version)))
+
+
+        return latest_version_tuple > current_version_tuple
+
     except Exception as e:
         # If network fails or file is missing, treat as no update
-        log_error(f"Unable to get current release, Current version {current_version}: {e}")
+        log_error(f"Unable to get current release. Current version {current_version}: {e}")
         return False
+
+## IMPORT STARTS
+try:
+    
+    base_dir =  get_base_dir()
+
+    yaml_path = os.path.join(base_dir, "config.yaml")
+    yaml_path_short = os.path.join(base_dir, "config.yml")
+    json_path = os.path.join(base_dir, "config.json")
+
+    if os.path.exists(yaml_path):
+        config_file = yaml_path
+    elif os.path.exists(yaml_path_short):
+        config_file = yaml_path_short
+    elif os.path.exists(json_path):
+        config_file = json_path
+    else:
+        # no config file found, create one
+        first_time = True
+        try:
+            generate_config_boilerplate(yaml_path)
+            config_file = yaml_path
+        except Exception as e_yaml:
+            logging.error(f"ERROR | main.py import | Failed to create YAML config: {e_yaml}, falling back to JSON")
+            generate_config_boilerplate(json_path)
+            config_file = json_path
+        
+        # ensure first_time is written to the config we just created
+        config = load_conf(config_file)
+        config["first_time"] = True
+        save_conf(config_file, config)
+            
+    config = load_conf(config_file)
+    if config is None:
+        raise RuntimeError(f"Config file {config_file} is empty or invald")
+    
+    if config.get("first_time") is True:
+        first_time = True
+
+    ## LOGGING CONFIG ##
+    log_file_name = config["logging"].get("log_file_name", "liveries.log")
+    max_bytes = config["logging"].get("max_bytes", 500000)
+    backup_count = config["logging"].get("backup_count", 5)
+    # Log file path using our base_dir
+    log_file_path = os.path.join(base_dir, log_file_name)
+
+    ## LOGGING SETUP ##
+    logging_handler = RotatingFileHandler(
+        log_file_path,
+        maxBytes=max_bytes,
+        backupCount=backup_count
+    )
+    logging_handler.namer = custom_logging_namer
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(message)s",
+        handlers=[logging_handler]
+    )
+    manifest.init_db(base_dir)
+    
+
+    try:
+        preset_dir = None
+        for entry in os.listdir(base_dir):
+            if entry.lower() == "presets" and os.path.isdir(os.path.join(base_dir, entry)):
+                preset_dir = os.path.join(base_dir, entry)
+                break
+        
+        created_presets_dir = False
+        if preset_dir is None:
+            preset_dir = os.path.join(base_dir, "presets")
+            os.makedirs(preset_dir, exist_ok=True)
+            logging.info(f"INFO PRESET | import main.py | Created presets folder at {preset_dir}")
+            created_presets_dir = True
+            
+            
+        if created_presets_dir or first_time:
+            try:
+                example_path = os.path.join(preset_dir, "example_preset.set")
+                generate_example_preset(example_path)
+                logging.info(f"INFO PRESET | import main.py | Created presets example at {example_path}")
+            except Exception as e:
+                logging.error(f"ERROR | import main.py | Failed to create example preset: {e}")
+                raise
+            import_preset("example_preset", example_path)
+    
+    except Exception as e:
+        logging.error(f"ERROR | import main.py | Failed to create presets folder: {e}")
+        raise
+    
+except Exception as e:
+    # if anything up to this point fails, crash - we can't continue
+    raise RuntimeError(f"Critical startup failure: {e}")
+## IMPORT ENDS
+
 
 # Register shutdown to always run at exit
 atexit.register(shutdown)

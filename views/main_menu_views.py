@@ -51,13 +51,13 @@ def main_menu(stdscr):
     ui.draw_disclaimer(stdscr)
 
     if not current_aircraft_id:
-        message_lines = [
-            "CONFIGURATION FILE MISSING OR INVALID",
-            "Your config.json file is missing or contains",
-            "invalid aircraft_id entries.",
-            "Please verify that aircraft IDs are defined correctly."
-        ]
-        ui.show_popup(stdscr, message_lines, msg_type="error")
+        # Attempt to initialize default aircraft from main.py
+        success = main.load_config()  # sets default_aircraft_id if missing
+        if success:
+            current_aircraft_id = main.current_aircraft_id
+        else:
+            # fallback if even automatic setup fails
+            current_aircraft_id = None
 
     update_available = main.is_update_available(main.software_version)
     

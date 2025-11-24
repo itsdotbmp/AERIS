@@ -16,11 +16,17 @@ def config_summary_view(stdscr, config):
     current_selected_index = 0
 
     ui.show_title(stdscr)
-    ui.draw_disclaimer(stdscr)    
+    ui.draw_disclaimer(stdscr)
+
+    
+
+    labels = [ui.ACCEPT_PROMPT, ui.CANCEL_PROMPT]
+    positions = ui.centered_buttons_x(max_x, *labels)
+    for label, pos_x in zip(labels, positions):
+        ui.draw_pseudo_button(stdscr, max_y - 3, pos_x, label)    
 
     ri = [
         {"y": 4, "x": 2, "label": "Program Configuration", "hint": "", "value": "", "can_edit": False},
-        {"y": 5, "x": 3, "label": "Server URL", "hint": "Enter the full URL to your server",  "value": config["program"]["server_url"], "can_edit": True, "edit_type": "text", "validator": validate_url},
         {"y": 6, "x": 3, "label": "Liveries Folder", "hint": "Enter the folder path to your liveries folder. Use '/' instead of '\\' in the path.", "value": config["environment"]["liveries_folder"], "can_edit": True, "edit_type": "text", "validator": validate_filepath},
         {"y": 7, "x": 3, "label": "Default Preset", "hint": "", "value": config["default_aircraft_id"], "can_edit": True, "edit_type": "select", "validator": None},
         {"y": 9, "x": 2, "label": "Aircraft Presets", "hint": "", "value": "Add/Edit Presets", "can_edit": True, "edit_type": "presets", "validator": None}
@@ -31,19 +37,32 @@ def config_summary_view(stdscr, config):
         "selected": curses.color_pair(ui.COLOR_PAIRS["edit field"]) | curses.A_REVERSE,
         "label": curses.A_BOLD
     }
+
+    instructions = f"""
+  These settings control how AERIS behaves on your system.
+  - The Liveries folder must point to your DCS Saved Games liveries directory.
+  - The Default Preset is the one AERIS loads at startup.
+  - To edit or modify presets, select [{ri[3].get("value")}].
+  - Press ESC or (C)ancel to return to the main menu.
+"""
+    stdscr.addstr(max_y - 11, 2, instructions)
     
     label_padding = 1
 
     while True:
         for i, line in enumerate(ri):
             stdscr.addstr(line["y"], line["x"], line["label"], attrs["label"])
-            if line.get("value"):
+            if line.get("can_edit", False):
+                val = line.get("value")
+                min_width = 15
+                left_justify = (val or "").ljust(min_width)
                 if i == editable_indices[current_selected_index]:
                     attr = attrs["selected"]
                 else:
                     attr = attrs["can_edit"]
-                stdscr.addstr(line["y"], line["x"] + len(line["label"]) + label_padding, line["value"], attr)
+                stdscr.addstr(line["y"], line["x"] + len(line["label"]) + label_padding, left_justify, attr)
         stdscr.refresh()
+        
 
         key = stdscr.getch()
         if ui.is_cancel(key):
@@ -94,9 +113,7 @@ def config_summary_view(stdscr, config):
 
                 label = current_field["label"]
                 val = edit_field
-                if label == "Server URL":
-                    config["program"]["server_url"] = val
-                elif label == "Liveries Folder":
+                if label == "Liveries Folder":
                     config["environment"]["liveries_folder"] = val
                 elif label == "Default Preset":
                     config["default_aircraft_id"] = val
@@ -138,7 +155,7 @@ def popup(stdscr, popup_data):
     input_start_x = 2 + len(field_label) + 1
     popup_modal.addstr(input_y, 2, field_label, curses.color_pair(ui.COLOR_PAIRS["edit field"]) | curses.A_BOLD)
     field_len = popup_width - 5 - len(field_label)
-    current_text = popup_data["target"].ljust(field_len)
+    current_text = (popup_data["target"] or "").ljust(field_len)
     # popup_modal.addstr(input_y, 2 + len(field_label), f" {current_text}", curses.color_pair(ui.COLOR_PAIRS["edit field"]) | curses.A_NORMAL)
     
 
@@ -148,7 +165,7 @@ def popup(stdscr, popup_data):
         ui.draw_pseudo_button(popup_modal, popup_height - 2, pos_x, label)
     
     # popup_modal.move(input_y, 2 + len(field_label) + len(popup_data['target']))
-    current_text = popup_data["target"]
+    current_text = (popup_data["target"] or "")
     result, action = ui.text_input(popup_modal, current_text, curses.color_pair(ui.COLOR_PAIRS["edit field"]) | curses.A_NORMAL, input_y, 2 + len(field_label), field_len)    
     curses.curs_set(0)
     popup_modal.refresh()
@@ -281,6 +298,11 @@ def select_default_aircraft_popup(stdscr, current_id, aircrafts_dict):
         if ui.is_cancel(key):
             result = None
             break
+        try:
+            ui.is_quit(key)
+        except ui.QuitFlow:
+            result = None
+            break
 
     popup_win.clear()
     popup_win.refresh()
@@ -336,7 +358,7 @@ def preset_editor_screen(stdscr):
             
             preset_name = preset.get("name", "")
             preset_folder = preset.get("folder", "")
-            preset_url = preset.get("url", "")
+            preset_url = preset.get("remote_subfolder", "")
             if idx == pad_cursor_y:
                 display_folder = preset_folder
                 display_url = preset_url
@@ -439,7 +461,7 @@ def preset_edit_view(stdscr, preset_data, is_new=False):
         {"y": 4, "x": 2, "label": "Preset ID", "hint": "Unique identifier (used for config & version file).", "value": preset_data.get("id", ""), "edit_type": "text", "validator": validate_preset_id, "can_edit": True},
         {"y": 5, "x": 2, "label": "Preset Name", "hint": "Human-readable name for this preset.", "value": preset_data.get("name", ""), "edit_type": "text", "validator": None, "can_edit": True},
         {"y": 6, "x": 2, "label": "Folder", "hint": "Local DCS aircraft folder to sync to", "value": preset_data.get("folder", ""), "edit_type": "text", "validator": validate_child_folder, "can_edit": True},
-        {"y": 7, "x": 2, "label": "Remote Folder", "hint": "Relative or absolute path to server location for this preset (leave blank if not used)", "value": preset_data.get("remote_subfolder", ""), "edit_type": "text", "validator": None, "can_edit": True},
+        {"y": 7, "x": 2, "label": "Remote Folder", "hint": "Absolute path to server location for this preset", "value": preset_data.get("remote_subfolder", ""), "edit_type": "text", "validator": validate_url, "can_edit": True},
         {"y": 10, "x": 2, "label": "", "edit_type": "save", "hint": "", "value": "Save changes", "validator": None, "can_edit": True},
         {"y": 11, "x": 2, "label": "", "edit_type": "cancel", "hint": "", "value": "Discard changes", "validator": None, "can_edit": True},
         {"y": 13, "x": 2, "label": "", "edit_type": "label", "hint": "", "value": "", "validator": None, "can_edit": False}
@@ -800,26 +822,60 @@ def validate_remote_versions(updated: dict, new_id):
     can save again if failed to overwrite.
     """
     preset_id = new_id
-    remote_subfolder = updated.get("remote_subfolder", "") or ""
-    server_url = main.server_url
-    
-    # build an absolute URL from the remote subfolder
+    remote_subfolder = updated.get("remote_subfolder") or ""
+    if not remote_subfolder:
+        return False, "Remote folder/URL must be defined for this preset."
+
     if remote_subfolder.startswith(("http://", "https://")):
         base_url = remote_subfolder.rstrip("/") + "/"
     else:
-        base_url = f"{server_url}/{remote_subfolder.lstrip('/').rstrip('/')}/"
+        return False, "Remote folder must be a full URL starting with http:// or https://"
 
-    # construct version file url
     version_file_name = main.version_filename
-    full_version_file = f"{preset_id}_{version_file_name}"
+    full_version_file = f"{new_id}_{version_file_name}"
     full_url = f"{base_url}{full_version_file}"
 
     try:
         if main.get_remote_version(full_url):
             return True, ""
         else:
-            msg = f"Cannot find version file at {full_url}"
-            return False, msg
+            return False, f"Cannot find version file at {full_url}"
     except Exception as e:
-        msg =  f"Faled to access remote versions file: {type(e).__name__}: {e}"
-        return False, msg
+        return False, f"Failed to access remote versions file: {type(e).__name__}: {e}"
+    
+def _first_time_config_system(stdscr): 
+    curses.curs_set(0)    # hide cursor
+    stdscr.clear()
+    stdscr.move(0, 0)
+    max_y, max_x = stdscr.getmaxyx()
+
+    ui.show_title(stdscr)
+    ui.draw_disclaimer(stdscr)
+
+    instructions = f"""
+  These settings control how AERIS behaves on your system.
+  - The Liveries folder must point to your DCS Saved Games liveries directory.
+  - The Default Preset is the one AERIS loads at startup.
+  - Press ESC or (C)ancel to return to the main menu.
+"""
+    stdscr.addstr(max_y - 11, 2, instructions)
+    
+    popup_data = {
+                "title": f"Edit Livery Folder Path",
+                "hint": "File path to DCS Saved games liveries folder",
+                "target": main.config["environment"].get("liveries_folder") or "",
+            }
+    while True:
+        livery_folder = popup(stdscr, popup_data)
+        if livery_folder is None:
+            continue
+        ok, msg = validate_filepath(livery_folder)
+        if ok:
+            main.config["environment"]["liveries_folder"] = livery_folder
+            main.save_conf(main.config_file, main.config)
+            break
+        else:
+            popup_data["hint"] = popup_data["hint"] + "\n" + msg
+    
+    return "presets"
+        

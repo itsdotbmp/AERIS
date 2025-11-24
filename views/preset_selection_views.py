@@ -46,7 +46,7 @@ def preset_selection_screen(stdscr, aircraft_presets_dict):
     # Line renders below pad
     stdscr.hline(_y, 2, curses.ACS_HLINE, max_x - 4)
 
-    labels = [ui.ACCEPT_PROMPT, "(E)dit preset", ui.CANCEL_PROMPT]
+    labels = [ui.ACCEPT_PROMPT, ui.CANCEL_PROMPT]
     positions = ui.centered_buttons_x(max_x, *labels)
     for label, pos_x in zip(labels, positions):
         ui.draw_pseudo_button(stdscr, _y + 5, pos_x, label)

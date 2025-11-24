@@ -1,10 +1,14 @@
 import core.main as main
 from core.main import log_info, log_error
 import os
-from views.config_editor import config_summary_view, preset_editor_screen, preset_edit_view, import_presets_view
+from views.config_editor import config_summary_view, preset_editor_screen, preset_edit_view, import_presets_view, _first_time_config_system
 
-def _config_editor_flow(stdscr):
-    state = "config"
+def _config_editor_flow(stdscr, start_state="config", payload=None):
+    """
+    start_state: "config" | "presets" | "import"
+    payload: optional data for the state (e.g., preset to edit)
+    """
+    state = start_state
 
     while True:
         if state == "config":
@@ -44,6 +48,7 @@ def _config_editor_flow(stdscr):
             else:
                 raise ValueError(f"Unexpected result {result}")
                 # break
+            payload = None
 
 
 def get_candidate_presets():
@@ -111,3 +116,20 @@ def get_candidate_presets():
     
     return candidates
     
+
+def _first_time_flow(stdscr):
+    """
+    Run the first-time configuration flow.
+    Prompts user for required data and sets up initial presets.
+    """
+    if main.first_time == True:
+        next_state = _first_time_config_system(stdscr)
+        if next_state == "presets":
+            _config_editor_flow(stdscr, start_state="presets")
+        main.first_time = False
+        if "first_time" in main.config:
+            del main.config["first_time"]
+            main.save_conf(main.config_file, main.config)
+            main.reload_config()
+    
+    return "main_menu"  # return control to main menu

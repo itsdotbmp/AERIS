@@ -5,6 +5,7 @@ import os
 import views.ui_parts as ui
 from views.ui_parts import QUIT
 from views.main_menu_views import _splash_screen, main_menu
+
 from controllers.exceptions import QuitFlow
 import logging
 import sys
@@ -20,7 +21,13 @@ def _startup(stdscr):
         logging.ERROR(f"INIT FAILED DO TO: {e}")
     
     _splash_screen(stdscr)
-    _main_menu_flow(stdscr)
+    if main.first_time:
+        from controllers.config_editor import _first_time_flow
+        state = _first_time_flow(stdscr)
+        if state == "main_menu":
+            _main_menu_flow(stdscr)
+    else:
+        _main_menu_flow(stdscr)
 
 def quit_program(stdscr=None, message="Exiting program..."):
     """
